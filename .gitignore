@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Binaries & Compiled Objects
+*.o
+*.out
+*.dylib.bak
+*.bak
+chrome_launcher
+Google Chrome
+
+# Temporary files
+/tmp/
+*.key
+*.crt
+*.p12
+*.conf
