@@ -79,6 +79,31 @@ python3 auto_patch_chrome.py
 
 ---
 
+## 📸 Screenshots & Proof of Verification
+
+### 1. Hardware Acceleration Restored (`chrome://gpu`)
+Full hardware acceleration enabled on macOS Sequoia 15.8 with GaneshGL and Dual AMD FirePro D700. Zero GPU crashes.
+
+<p align="center">
+  <img src="docs/images/chrome_gpu_status.png" alt="Chrome GPU Status" width="90%">
+</p>
+
+### 2. Smooth 60fps YouTube Playback with Stats for Nerds
+Fluid 60fps playback with 0 dropped frames, rich colors, and no visual artifacts or flickering.
+
+<p align="center">
+  <img src="docs/images/youtube_stats_for_nerds.png" alt="YouTube Stats for Nerds" width="90%">
+</p>
+
+### 3. Test Machine Specifications
+Verified on Mac Pro 6,1 (Late 2013) with Dual AMD FirePro D700 running macOS Sequoia 15.8 via OpenCore Legacy Patcher.
+
+<p align="center">
+  <img src="docs/images/macpro_specs.png" alt="Mac Pro Specifications" width="60%">
+</p>
+
+---
+
 ## 🔬 Technical Deep Dive
 
 ### 1. Bypassing macOS OpenGL Disablement (Binary Patching)

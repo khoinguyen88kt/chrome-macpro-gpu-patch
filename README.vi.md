@@ -77,6 +77,31 @@ python3 auto_patch_chrome.py
 
 ---
 
+## 📸 Hình Ảnh Thực Tế & Kết Quả Kiểm Thử (Screenshots)
+
+### 1. Trạng Thái Tăng Tốc Phần Cứng (`chrome://gpu`)
+Kích hoạt thành công 100% tăng tốc phần cứng (Compositing, Rasterization, WebGL, WebGPU) trên macOS Sequoia 15.8 với Skia GaneshGL và Dual AMD FirePro D700. Số lần GPU crash: 0.
+
+<p align="center">
+  <img src="docs/images/chrome_gpu_status.png" alt="Chrome GPU Status" width="90%">
+</p>
+
+### 2. Phát Video YouTube 60fps Mượt Mà (Stats for Nerds)
+Phát video siêu mượt, không rớt khung hình (0 dropped frames), màu sắc rực rỡ, không còn sọc bàn cờ, màn hình xanh hay nhấp nháy thanh tìm kiếm.
+
+<p align="center">
+  <img src="docs/images/youtube_stats_for_nerds.png" alt="YouTube Stats for Nerds" width="90%">
+</p>
+
+### 3. Cấu Hình Thiết Bị Thử Nghiệm
+Kiểm thử thực tế trên Mac Pro 6,1 (Late 2013 "Thùng rác") chạy macOS Sequoia 15.8 qua OpenCore Legacy Patcher với card đồ họa kép AMD FirePro D700.
+
+<p align="center">
+  <img src="docs/images/macpro_specs.png" alt="Mac Pro Specifications" width="60%">
+</p>
+
+---
+
 ## 🔬 Chi Tiết Kỹ Thuật & Nguyên Lý Khắc Phục (Technical Deep Dive)
 
 ### 1. Phá bỏ rào cản cấm ANGLE OpenGL (Binary Patching)
