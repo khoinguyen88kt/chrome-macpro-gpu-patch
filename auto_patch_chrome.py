@@ -13,7 +13,14 @@ import time
 import argparse
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_APP = "/Applications/Google Chrome.app"
+
+def get_base_app():
+    for path in ["/Applications/Google Chrome.app", os.path.expanduser("~/Applications/Google Chrome.app")]:
+        if os.path.exists(path):
+            return path
+    return "/Applications/Google Chrome.app"
+
+BASE_APP = get_base_app()
 FRAMEWORK_DIR = os.path.join(BASE_APP, "Contents/Frameworks/Google Chrome Framework.framework")
 VERSIONS_DIR = os.path.join(FRAMEWORK_DIR, "Versions")
 CURRENT_LINK = os.path.join(VERSIONS_DIR, "Current")
