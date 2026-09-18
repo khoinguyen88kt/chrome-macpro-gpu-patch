@@ -212,3 +212,14 @@ chrome-macpro-gpu-patch/
 ## 📄 Bản Quyền & Giấy Phép (License)
 
 Dự án được phân phối dưới giấy phép **MIT License**. Bạn hoàn toàn có quyền sử dụng, sửa đổi và phân phối lại cho cộng đồng người dùng macOS chạy Mac cũ và OpenCore Legacy Patcher.
+
+---
+
+## ⚖️ Tuyên Bố Từ Chối Trách Nhiệm (Disclaimer)
+
+* Đây là một dự án nghiên cứu mã nguồn mở phi lợi nhuận độc lập của cộng đồng, được tạo ra với mục đích duy nhất là khôi phục khả năng tương thích phần cứng và tăng tốc đồ họa cho các dòng máy Mac đời cũ chạy phiên bản macOS mới thông qua OpenCore Legacy Patcher.
+* Dự án này **không liên kết, không được tài trợ, ủy quyền hoặc bảo trợ bởi** Google LLC, Alphabet Inc., Apple Inc. hay bất kỳ công ty con nào của họ.
+* **Google Chrome** là nhãn hiệu đã đăng ký của Google LLC. **macOS**, **Mac Pro**, và **Metal** là các nhãn hiệu đã đăng ký của Apple Inc.
+* Toàn bộ thao tác chỉnh sửa đều được thực hiện cục bộ trên máy tính cá nhân của người dùng. Repository này không lưu trữ, phân phối lại hoặc chia sẻ bất kỳ file nhị phân có bản quyền độc quyền nào của Google Chrome hoặc Apple.
+* Phần mềm và các đoạn mã trong dự án được cung cấp theo nguyên tắc **"nguyên trạng" (as-is)**, không đi kèm bất kỳ cam kết hay bảo đảm nào, theo đúng quy định của giấy phép [MIT License](LICENSE). Người dùng tự chịu trách nhiệm khi áp dụng các thay đổi này trên hệ thống của mình.
+

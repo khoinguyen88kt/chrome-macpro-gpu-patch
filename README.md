@@ -222,3 +222,14 @@ chrome-macpro-gpu-patch/
 ## 📄 License
 
 This project is licensed under the **MIT License**. Feel free to use, modify, and distribute it to help the legacy Mac and OpenCore Legacy Patcher community!
+
+---
+
+## ⚖️ Disclaimer
+
+* This project is an independent, open-source community research effort created solely to restore hardware compatibility and accessibility for legacy Mac hardware on modern macOS releases.
+* This project is **not affiliated with, maintained, authorized, endorsed, or sponsored by** Google LLC, Alphabet Inc., Apple Inc., or any of their affiliates.
+* **Google Chrome** is a registered trademark of Google LLC. **macOS**, **Mac Pro**, and **Metal** are registered trademarks of Apple Inc.
+* All code modifications are performed locally on the user's machine. This repository does not host, distribute, or redistribute any copyrighted proprietary binaries of Google Chrome or macOS.
+* The software and scripts are provided **"as-is"**, without warranty of any kind, express or implied, as outlined in the [MIT License](LICENSE). Users assume full responsibility for applying these modifications to their local installations.
+
