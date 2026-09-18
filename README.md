@@ -64,7 +64,19 @@ Make sure Google Chrome is completely closed, then run:
 ```bash
 python3 auto_patch_chrome.py
 ```
-*The script will automatically copy clean ANGLE dylibs, scan and patch the Chrome Framework binary, compile the optimized native C launcher, and re-sign the entire Chrome application bundle.*
+*The script will automatically copy clean ANGLE dylibs, create a safe pristine backup, scan and patch the Chrome Framework binary, compile the optimized native C launcher, and re-sign the entire Chrome application bundle.*
+
+#### CLI Options & Backup Safety:
+| Command / Flag | Description |
+| :--- | :--- |
+| `python3 auto_patch_chrome.py` | Default mode: creates clean backup, applies all 7 patches, and re-signs Chrome. |
+| `python3 auto_patch_chrome.py --check` | Checks if current Chrome version is already fully patched and signed. |
+| `python3 auto_patch_chrome.py --restore` | Restores original unpatched Google Chrome Framework from backup. |
+| `python3 auto_patch_chrome.py --auto` | Background watcher mode used by LaunchAgent. |
+
+> [!NOTE]
+> **Automatic Backup & Rollback**:
+> Before any binary modification, the script backs up the pristine original framework to `~/.chrome_macpro_backups/Google_Chrome_Framework_<version>.bak`. If any unexpected error occurs during patching or compiling, it **automatically rolls back** to the clean backup so Chrome is never left in a broken state.
 
 ### Step 4: Launch Chrome & Verify
 1. Launch Google Chrome from `/Applications/Google Chrome.app`.

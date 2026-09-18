@@ -64,6 +64,19 @@ bash setup_certificate.sh
 ```bash
 python3 auto_patch_chrome.py
 ```
+*Script sẽ tự động sao chép dylib ANGLE sạch, tạo bản backup sạch an toàn, quét và vá mã nhị phân Chrome Framework, biên dịch launcher C native và ký số lại toàn bộ ứng dụng Chrome.*
+
+#### Các Tùy Chọn Dòng Lệnh & Cơ Chế Sao Lưu An Toàn:
+| Lệnh / Cờ | Mô tả chức năng |
+| :--- | :--- |
+| `python3 auto_patch_chrome.py` | Chế độ mặc định: tạo bản backup sạch, áp dụng cả 7 bản vá và ký số lại Chrome. |
+| `python3 auto_patch_chrome.py --check` | Kiểm tra xem Chrome phiên bản hiện tại đã được vá hoàn chỉnh hay chưa. |
+| `python3 auto_patch_chrome.py --restore` | Khôi phục lại Google Chrome Framework gốc ban đầu của Google từ bản backup sạch. |
+| `python3 auto_patch_chrome.py --auto` | Chế độ chạy nền tự động dành cho dịch vụ LaunchAgent. |
+
+> [!NOTE]
+> **Tự động sao lưu & Khôi phục (Rollback) khi gặp lỗi**:
+> Trước khi sửa đổi bất kỳ byte nào, script luôn tự động sao lưu framework sạch gốc vào thư mục `~/.chrome_macpro_backups/Google_Chrome_Framework_<version>.bak`. Nếu xảy ra bất kỳ lỗi nào trong quá trình vá hoặc biên dịch launcher, script sẽ **ngay lập tức tự động rollback** về bản gốc sạch, đảm bảo ứng dụng không bao giờ bị lỗi hỏng dở dang.
 
 ### Bước 4: Khởi động Chrome & Xác thực
 1. Mở Google Chrome từ `/Applications/Google Chrome.app`.
