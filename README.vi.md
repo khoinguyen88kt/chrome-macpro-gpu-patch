@@ -120,6 +120,13 @@ Kiểm thử thực tế trên Mac Pro 6,1 (Late 2013 "Thùng rác") chạy macO
   <img src="docs/images/macpro_specs.png" alt="Mac Pro Specifications" width="60%">
 </p>
 
+### 4. Phiên Bản Đã Kiểm Thử Hoạt Động (`chrome://settings/help`)
+Đã kiểm thử thực tế và hoạt động hoàn hảo trên **Google Chrome 153.0.8010.53 (Official Build) (x86_64)**, đảm bảo ổn định xuyên suốt các bản cập nhật mới.
+
+<p align="center">
+  <img src="docs/images/chrome_version_tested.png" alt="Google Chrome Phiên bản 153 Đã kiểm thử" width="80%">
+</p>
+
 ---
 
 ## 🔬 Chi Tiết Kỹ Thuật & Nguyên Lý Khắc Phục (Technical Deep Dive)

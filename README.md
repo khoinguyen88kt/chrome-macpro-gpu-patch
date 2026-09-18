@@ -121,6 +121,13 @@ Verified on Mac Pro 6,1 (Late 2013) with Dual AMD FirePro D700 running macOS Seq
   <img src="docs/images/macpro_specs.png" alt="Mac Pro Specifications" width="60%">
 </p>
 
+### 4. Verified Tested Version (`chrome://settings/help`)
+Fully tested and working on **Google Chrome 153.0.8010.53 (Official Build) (x86_64)** with continuous stability across browser updates.
+
+<p align="center">
+  <img src="docs/images/chrome_version_tested.png" alt="Google Chrome Version 153 Tested" width="80%">
+</p>
+
 ---
 
 ## 🔬 Technical Deep Dive
