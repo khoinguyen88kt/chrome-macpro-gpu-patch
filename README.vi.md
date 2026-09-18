@@ -49,7 +49,7 @@ Trước khi chạy script, hãy đảm bảo hệ thống của bạn đã có:
 
 ### Bước 1: Clone Repository
 ```bash
-git clone https://github.com/<your-username>/chrome-macpro-gpu-patch.git
+git clone https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch.git
 cd chrome-macpro-gpu-patch
 ```
 

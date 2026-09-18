@@ -49,7 +49,7 @@ Before running the patcher, ensure your system has the following:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/<your-username>/chrome-macpro-gpu-patch.git
+git clone https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch.git
 cd chrome-macpro-gpu-patch
 ```
 
