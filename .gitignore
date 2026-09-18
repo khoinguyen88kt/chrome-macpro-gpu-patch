@@ -17,5 +17,8 @@ Google Chrome
 *.key
 *.crt
 *.p12
-*.conf
 docs/images/test_capture.png
+
+# Python
+__pycache__/
+*.pyc

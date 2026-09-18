@@ -8,7 +8,7 @@ import sys
 import shutil
 import subprocess
 import glob
-
+import re
 import time
 import argparse
 
@@ -48,18 +48,31 @@ def is_already_patched(current_ver):
     fw_bin = os.path.join(ver_dir, "Google Chrome Framework")
     lib_egl = os.path.join(ver_dir, "Libraries/libEGL.dylib")
     launcher_dst = os.path.join(BASE_APP, "Contents/MacOS/Google Chrome")
+    gpu_helper = os.path.join(ver_dir, "Helpers/Google Chrome Helper (GPU).app")
 
-    if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst):
+    if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
         return False
 
-    p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
+    # 1. Check if GPU Helper is signed with LocalCodeSigner
+    res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
+    if "Authority=LocalCodeSigner" not in res.stderr and "Authority=LocalCodeSigner" not in res.stdout:
+        return False
+
+    # 2. Check if Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) is patched
+    p7_patched = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45 cc 88 83 8c 01 00 00")
     try:
         with open(fw_bin, "rb") as f:
             f.seek(0x4000)
             data = f.read(0x10051c10)
-            return data.find(p1_patched) != -1
+            if data.find(p7_patched) == -1:
+                return False
     except Exception:
         return False
+
+    return True
+
+def safe_copy(src, dst):
+    subprocess.run(["cp", "-f", src, dst], check=True)
 
 def main():
     parser = argparse.ArgumentParser(description="Automated Chrome GPU patcher for legacy Mac GPUs")
@@ -105,19 +118,28 @@ def main():
         dst = os.path.join(lib_dir, dylib)
         if os.path.exists(src):
             print(f"[*] Copying clean {dylib} to {current_ver}...")
-            shutil.copy2(src, dst)
+            safe_copy(src, dst)
         else:
             print(f"[!] Warning: Reference dylib not found: {src}")
 
     # 2. Patch Google Chrome Framework binary
     fw_bin = os.path.join(ver_dir, "Google Chrome Framework")
-    bak_bin = fw_bin + ".bak"
+    backup_dir = os.path.expanduser("~/.chrome_macpro_backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    bak_bin = os.path.join(backup_dir, f"Google_Chrome_Framework_{current_ver}.bak")
+
+    # Move legacy in-bundle backup if present to keep bundle clean
+    legacy_bak = fw_bin + ".bak"
+    if os.path.exists(legacy_bak):
+        if not os.path.exists(bak_bin):
+            shutil.move(legacy_bak, bak_bin)
+
     if not os.path.exists(bak_bin):
-        print("[*] Creating backup Google Chrome Framework.bak...")
+        print(f"[*] Creating backup to {bak_bin}...")
         shutil.copy2(fw_bin, bak_bin)
     else:
-        print("[*] Restoring clean binary from Google Chrome Framework.bak...")
-        shutil.copy2(bak_bin, fw_bin)
+        print(f"[*] Restoring clean binary from {bak_bin}...")
+        safe_copy(bak_bin, fw_bin)
 
     with open(fw_bin, "r+b") as f:
         slice_off = 0x4000
@@ -167,16 +189,19 @@ def main():
             print("[!] Warning: Pattern 3 not found in binary!")
 
         # Patch 4: Prevent sandbox_check abort in GpuMain (CHECK(Seatbelt::IsSandboxed()))
-        p4 = bytes.fromhex("89 c7 31 f6 31 d2 31 c0 e8 80 c4 f8 0b 85 c0 0f 84 ed 00 00 00")
-        p4_patched = bytes.fromhex("89 c7 31 f6 31 d2 31 c0 e8 80 c4 f8 0b 85 c0 90 90 90 90 90 90")
-        idx4 = data.find(p4)
-        if idx4 != -1:
-            print(f"[*] Found Pattern 4 at 0x{idx4:x}, applying patch (NOP out je abort)...")
-            f.seek(slice_off + idx4 + 15)
+        p4_regex = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84..\x00\x00)")
+        p4_patched_regex = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x90{6})")
+        m4 = p4_regex.search(data)
+        if m4:
+            idx4 = m4.start(2)
+            print(f"[*] Found Pattern 4 at 0x{m4.start():x}, applying patch (NOP out je abort)...")
+            f.seek(slice_off + idx4)
             f.write(b"\x90\x90\x90\x90\x90\x90")
             print("[+] Pattern 4 patched successfully!")
-        elif data.find(p4_patched) != -1:
+        elif p4_patched_regex.search(data):
             print("[+] Pattern 4 already patched.")
+        else:
+            print("[!] Warning: Pattern 4 not found in binary!")
 
         # Patch 5: IOSurfaceImageBackingFactory::CreateSharedImageGMBs (texture_target = GL_TEXTURE_RECTANGLE 0x84f5)
         p5 = bytes.fromhex("488db578feffff488906418b4720458b47384c896c2418894424100fb645cc89442408c7042401000000")
@@ -222,8 +247,10 @@ def main():
     launcher_dst = os.path.join(BASE_APP, "Contents/MacOS/Google Chrome")
     if os.path.exists(LAUNCHER_SRC):
         print("[*] Compiling chrome_main.c into Google Chrome launcher...")
-        res = run(f'clang -O2 "{LAUNCHER_SRC}" -o "{launcher_dst}"')
+        tmp_launcher = os.path.join(SCRIPT_DIR, "Google Chrome")
+        res = run(f'clang -O2 "{LAUNCHER_SRC}" -o "{tmp_launcher}"')
         if res.returncode == 0:
+            safe_copy(tmp_launcher, launcher_dst)
             print("[+] Google Chrome launcher installed successfully!")
         else:
             print("[!] Failed to compile Google Chrome launcher!")
