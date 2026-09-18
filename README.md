@@ -77,6 +77,13 @@ python3 auto_patch_chrome.py
    * **WebGPU**: Hardware accelerated
    * **GPU Process Crash Count**: **0**
 
+### Step 5: (Recommended) Enable Seamless Auto-Patching on Chrome Updates
+Install the background **macOS LaunchAgent** service. Whenever Google Chrome updates in the background, `launchd` kernel file watchers detect the new version, automatically apply the patch, compile the launcher, and re-sign the app **before you click "Relaunch"**:
+```bash
+bash install_auto_patch_service.sh
+```
+*Zero CPU/RAM usage when idle. To uninstall anytime: `bash uninstall_auto_patch_service.sh`.*
+
 ---
 
 ## 📸 Screenshots & Proof of Verification

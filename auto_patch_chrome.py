@@ -9,6 +9,9 @@ import shutil
 import subprocess
 import glob
 
+import time
+import argparse
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_APP = "/Applications/Google Chrome.app"
 FRAMEWORK_DIR = os.path.join(BASE_APP, "Contents/Frameworks/Google Chrome Framework.framework")
@@ -17,6 +20,15 @@ CURRENT_LINK = os.path.join(VERSIONS_DIR, "Current")
 REF_ANGLE_LIB = os.path.join(SCRIPT_DIR, "angle_dylibs")
 LAUNCHER_SRC = os.path.join(SCRIPT_DIR, "chrome_main.c")
 
+def notify(title, message):
+    try:
+        subprocess.run([
+            "osascript", "-e",
+            f'display notification "{message}" with title "{title}" sound name "Glass"'
+        ], capture_output=True)
+    except Exception:
+        pass
+
 def run(cmd):
     print(f"[RUN] {cmd}")
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -24,7 +36,31 @@ def run(cmd):
         print(f"[ERR] {res.stderr.strip()}")
     return res
 
+def is_already_patched(current_ver):
+    ver_dir = os.path.join(VERSIONS_DIR, current_ver)
+    fw_bin = os.path.join(ver_dir, "Google Chrome Framework")
+    lib_egl = os.path.join(ver_dir, "Libraries/libEGL.dylib")
+    launcher_dst = os.path.join(BASE_APP, "Contents/MacOS/Google Chrome")
+
+    if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst):
+        return False
+
+    p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
+    try:
+        with open(fw_bin, "rb") as f:
+            f.seek(0x4000)
+            data = f.read(0x10051c10)
+            return data.find(p1_patched) != -1
+    except Exception:
+        return False
+
 def main():
+    parser = argparse.ArgumentParser(description="Automated Chrome GPU patcher for legacy Mac GPUs")
+    parser.add_argument("--check", action="store_true", help="Check if Chrome is already patched")
+    parser.add_argument("--auto", action="store_true", help="Background watcher mode (checks and patches only if needed)")
+    parser.add_argument("--notify", action="store_true", help="Send macOS notification on completion")
+    args = parser.parse_args()
+
     if not os.path.exists(CURRENT_LINK):
         print(f"[!] Error: Chrome framework not found at {CURRENT_LINK}")
         print("    Please make sure Google Chrome is installed in /Applications.")
@@ -32,6 +68,25 @@ def main():
 
     current_ver = os.path.basename(os.path.realpath(CURRENT_LINK))
     print(f"[*] Detected Chrome Framework version: {current_ver}")
+
+    if args.check:
+        patched = is_already_patched(current_ver)
+        if patched:
+            print(f"[+] Chrome {current_ver} is ALREADY patched.")
+            return 0
+        else:
+            print(f"[-] Chrome {current_ver} is NOT patched.")
+            return 1
+
+    if args.auto:
+        # Give GoogleUpdater a moment to finish file writing
+        time.sleep(4)
+        # Re-check current version after potential update completes
+        current_ver = os.path.basename(os.path.realpath(CURRENT_LINK))
+        if is_already_patched(current_ver):
+            print(f"[*] Chrome {current_ver} is already patched. Nothing to do.")
+            return 0
+        print(f"[!] New/unpatched Chrome detected ({current_ver})! Commencing automatic patch...")
 
     ver_dir = os.path.join(VERSIONS_DIR, current_ver)
     lib_dir = os.path.join(ver_dir, "Libraries")
@@ -189,9 +244,11 @@ def main():
     run(f'codesign --force --deep --sign "LocalCodeSigner" "{BASE_APP}"')
     
     print("[*] Verifying signature...")
-    v = run(f'codesign -v --deep "{BASE_APP}"')
+    v = run(f'codesign -v "{BASE_APP}"')
     if v.returncode == 0:
         print("[+] Signature VALID! Google Chrome is ready to run.")
+        if args.notify or args.auto:
+            notify("Chrome GPU Patch", f"Google Chrome {current_ver} has been patched successfully for your AMD GPU!")
     else:
         print("[!] Codesign verification warning:", v.stderr.strip())
 

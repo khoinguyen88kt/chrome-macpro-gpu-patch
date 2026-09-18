@@ -75,6 +75,13 @@ python3 auto_patch_chrome.py
    * **WebGL / WebGL 2**: Hardware accelerated
    * **WebGPU**: Hardware accelerated
 
+### Bước 5: (Khuyên dùng) Tự động vá lại mỗi khi Chrome cập nhật phiên bản mới
+Cài đặt dịch vụ chạy ngầm **macOS LaunchAgent**. Mỗi khi Google Chrome tự động tải bản cập nhật và chuẩn bị hiện nút "Relaunch", dịch vụ sẽ tự động phát hiện phiên bản mới, vá nhị phân, cài đặt launcher và ký lại chứng chỉ **trước khi bạn bấm Relaunch**:
+```bash
+bash install_auto_patch_service.sh
+```
+*Dịch vụ hoạt động hoàn toàn tự động, chiếm 0% CPU/RAM khi ở trạng thái chờ. Để gỡ bỏ bất kỳ lúc nào: `bash uninstall_auto_patch_service.sh`.*
+
 ---
 
 ## 📸 Hình Ảnh Thực Tế & Kết Quả Kiểm Thử (Screenshots)
