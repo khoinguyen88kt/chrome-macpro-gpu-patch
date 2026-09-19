@@ -15,6 +15,8 @@ class ChromePatcher(BaseBrowserPatcher):
         "/Applications/Google Chrome.app",
         os.path.expanduser("~/Applications/Google Chrome.app")
     ]
+    bundle_id = "com.google.Chrome"
+    app_bundle_name = "Google Chrome.app"
     framework_name = "Google Chrome Framework.framework"
     framework_binary_name = "Google Chrome Framework"
     launcher_name = "Google Chrome"

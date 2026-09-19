@@ -35,6 +35,8 @@ def main():
     )
     parser.add_argument("target", nargs="?", default="all",
                         help="Browser to patch: 'chrome', 'opera', or 'all' (default: all installed)")
+    parser.add_argument("--app-path", type=str, default=None,
+                        help="Explicit path to the .app bundle (e.g. /Applications/Brave Browser.app)")
     parser.add_argument("--list", action="store_true", help="List supported and detected browsers")
     parser.add_argument("--check", action="store_true", help="Check if target browser(s) are already patched")
     parser.add_argument("--restore", action="store_true", help="Restore original binaries from backup")
@@ -44,14 +46,19 @@ def main():
     args = parser.parse_args()
 
     if args.list:
-        print("Supported Browsers:")
+        print("Supported Browsers & Installation Paths:")
         for slug, cls in AVAILABLE_PATCHERS.items():
-            p = cls(repo_root=SCRIPT_DIR)
+            p = cls(repo_root=SCRIPT_DIR, app_path=args.app_path if args.target == slug else None)
             installed = "INSTALLED" if p.is_installed() else "Not found"
             ver = p.get_current_version() if p.is_installed() else ""
             ver_str = f"(v{ver})" if ver else ""
-            print(f"  - {slug:8} : {p.name:20} [{installed}] {ver_str}")
+            path_str = f"-> {p.app_path}" if p.is_installed() else f"(Searched: {p.app_path})"
+            print(f"  - {slug:8} : {p.name:16} [{installed:9}] {ver_str:16} {path_str}")
         return 0
+
+    if args.app_path and args.target == "all":
+        print("[!] Error: --app-path can only be specified when targeting a specific browser (e.g. 'python3 patch.py brave --app-path ...').")
+        return 1
 
     target = args.target.lower()
     targets_to_run = []
@@ -63,9 +70,9 @@ def main():
             return 1
         targets_to_run = list(installed.values())
     elif target in AVAILABLE_PATCHERS:
-        p = AVAILABLE_PATCHERS[target](repo_root=SCRIPT_DIR)
+        p = AVAILABLE_PATCHERS[target](repo_root=SCRIPT_DIR, app_path=args.app_path)
         if not p.is_installed():
-            print(f"[!] {p.name} is not installed at {p.app_path}.")
+            print(f"[!] {p.name} is not found at '{p.app_path}'. Use --app-path to specify its location.")
             return 1
         targets_to_run = [p]
     else:

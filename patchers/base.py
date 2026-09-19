@@ -34,6 +34,8 @@ class BaseBrowserPatcher:
     name = "Base Chromium Browser"
     slug = "base"
     possible_app_paths = []
+    bundle_id = ""
+    app_bundle_name = ""
     framework_name = ""
     framework_binary_name = ""
     launcher_name = ""
@@ -41,19 +43,71 @@ class BaseBrowserPatcher:
     backup_base_dir = ""
     certificate_name = "LocalCodeSigner"
 
-    def __init__(self, repo_root=None):
+    def __init__(self, repo_root=None, app_path=None):
         if repo_root is None:
             # Fallback to repo root directory (parent of patchers/)
             self.repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         else:
             self.repo_root = repo_root
+        self.custom_app_path = app_path
         self.app_path = self.find_app()
 
+    def find_via_mdfind(self):
+        """Locates the .app bundle dynamically anywhere on macOS using Spotlight."""
+        # 1. Search by Bundle Identifier first
+        if self.bundle_id:
+            try:
+                cmd = ["mdfind", f"kMDItemCFBundleIdentifier == '{self.bundle_id}'"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                if res.returncode == 0:
+                    for line in res.stdout.strip().splitlines():
+                        line = line.strip()
+                        if line.endswith(".app") and os.path.exists(line):
+                            return line
+            except Exception:
+                pass
+
+        # 2. Search by App Bundle filename
+        if self.app_bundle_name:
+            try:
+                cmd = ["mdfind", f"kMDItemFSName == '{self.app_bundle_name}'"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                if res.returncode == 0:
+                    for line in res.stdout.strip().splitlines():
+                        line = line.strip()
+                        if line.endswith(".app") and os.path.exists(line):
+                            return line
+            except Exception:
+                pass
+
+        return None
+
     def find_app(self):
+        """Resolves the browser installation directory using multiple discovery tiers."""
+        # Tier 1: Explicit custom path passed by user
+        if self.custom_app_path:
+            expanded = os.path.abspath(os.path.expanduser(self.custom_app_path))
+            return expanded
+
+        # Tier 2: Environment variable override (<BROWSER>_APP_PATH)
+        env_key = f"{self.slug.upper()}_APP_PATH"
+        if env_key in os.environ:
+            env_path = os.path.abspath(os.path.expanduser(os.environ[env_key]))
+            if os.path.exists(env_path):
+                return env_path
+
+        # Tier 3: Check standard predefined installation paths
         for path in self.possible_app_paths:
             expanded = os.path.expanduser(path)
             if os.path.exists(expanded):
                 return expanded
+
+        # Tier 4: Dynamic system-wide discovery via macOS Spotlight (mdfind)
+        found = self.find_via_mdfind()
+        if found:
+            return found
+
+        # Tier 5: Fallback to default expected path
         if self.possible_app_paths:
             return os.path.expanduser(self.possible_app_paths[0])
         return ""

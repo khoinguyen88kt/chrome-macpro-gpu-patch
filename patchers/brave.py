@@ -14,6 +14,8 @@ class BravePatcher(BaseBrowserPatcher):
         "/Applications/Brave Browser.app",
         os.path.expanduser("~/Applications/Brave Browser.app")
     ]
+    bundle_id = "com.brave.Browser"
+    app_bundle_name = "Brave Browser.app"
     framework_name = "Brave Browser Framework.framework"
     framework_binary_name = "Brave Browser Framework"
     launcher_name = "Brave Browser"

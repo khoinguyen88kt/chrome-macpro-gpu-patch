@@ -80,7 +80,8 @@ python3 patch.py brave
 | `python3 patch.py chrome` | Patches Google Chrome only. |
 | `python3 patch.py opera` | Patches Opera Browser only. |
 | `python3 patch.py brave` | Patches Brave Browser only. |
-| `python3 patch.py --list` | Lists all supported browsers and checks their installation status. |
+| `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
+| `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |

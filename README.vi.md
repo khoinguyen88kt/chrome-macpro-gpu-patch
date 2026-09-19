@@ -80,7 +80,8 @@ python3 patch.py brave
 | `python3 patch.py chrome` | Chỉ vá riêng Google Chrome. |
 | `python3 patch.py opera` | Chỉ vá riêng Opera Browser. |
 | `python3 patch.py brave` | Chỉ vá riêng Brave Browser. |
-| `python3 patch.py --list` | Liệt kê danh sách các trình duyệt hỗ trợ và trạng thái cài đặt. |
+| `python3 patch.py brave --app-path "/path/to/Brave.app"` | Vá trình duyệt ở thư mục cài đặt tùy chỉnh / không chuẩn. |
+| `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |

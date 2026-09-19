@@ -14,6 +14,8 @@ class OperaPatcher(BaseBrowserPatcher):
         "/Applications/Opera.app",
         os.path.expanduser("~/Applications/Opera.app")
     ]
+    bundle_id = "com.operasoftware.Opera"
+    app_bundle_name = "Opera.app"
     framework_name = "Opera Framework.framework"
     framework_binary_name = "Opera Framework"
     launcher_name = "Opera"
