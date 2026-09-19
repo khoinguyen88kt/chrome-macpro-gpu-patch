@@ -63,12 +63,13 @@ bash setup_certificate.sh
 Đảm bảo đã thoát hoàn toàn trình duyệt bạn muốn vá, sau đó chạy:
 
 ```bash
-# Tự động phát hiện và vá TẤT CẢ các trình duyệt đã cài đặt (Chrome, Opera...)
+# Tự động phát hiện và vá TẤT CẢ các trình duyệt đã cài đặt (Chrome, Opera, Brave...)
 python3 patch.py
 
 # Hoặc chỉ vá một trình duyệt cụ thể:
 python3 patch.py chrome
 python3 patch.py opera
+python3 patch.py brave
 ```
 *Script sẽ tự động tạo bản backup an toàn, quét và vá mã nhị phân Framework, biên dịch launcher C native và ký số lại toàn bộ bundle bằng `LocalCodeSigner`.*
 
@@ -78,11 +79,13 @@ python3 patch.py opera
 | `python3 patch.py` | Tự động phát hiện và vá tất cả trình duyệt được hỗ trợ đã cài trên Mac. |
 | `python3 patch.py chrome` | Chỉ vá riêng Google Chrome. |
 | `python3 patch.py opera` | Chỉ vá riêng Opera Browser. |
+| `python3 patch.py brave` | Chỉ vá riêng Brave Browser. |
 | `python3 patch.py --list` | Liệt kê danh sách các trình duyệt hỗ trợ và trạng thái cài đặt. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
+| `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
 
 > [!NOTE]
 > **Tự động sao lưu & Khôi phục (Rollback) khi gặp lỗi**:

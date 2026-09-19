@@ -84,6 +84,46 @@ class ChromePatcher(BaseBrowserPatcher):
                     print("[!] Warning: Patch 4 (Seatbelt IsSandboxed) pattern not found!")
                     return False
 
+        # Version check: Chromium 153+ vs earlier
+        is_v153_plus = False
+        try:
+            major = int(version.split(".")[0])
+            if major >= 153:
+                is_v153_plus = True
+        except Exception:
+            pass
+
+        if is_v153_plus:
+            return [
+                ("Patch 1 (GetAllowedGLImplementation)",
+                 bytes.fromhex("84 c0 74 0f 80 7d b8 00 74 cd 48 8b 45 b0"),
+                 bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")),
+
+                ("Patch 2 (GetDisplayInitializationParams)",
+                 bytes.fromhex("84 c0 0f 85 06 06 00 00 48 b8 09 00 00 00 03 00"),
+                 bytes.fromhex("84 c0 e9 07 06 00 00 90 48 b8 09 00 00 00 03 00")),
+
+                ("Patch 3 (GpuMode fallback to HARDWARE_GL)",
+                 bytes.fromhex("84 c0 0f 84 8b 00 00 00 c7 45 ac 03 00 00 00"),
+                 bytes.fromhex("84 c0 90 90 90 90 90 90 c7 45 ac 01 00 00 00")),
+
+                ("Patch 4 (Seatbelt IsSandboxed)",
+                 bytes.fromhex("85 c0 0f 84 a7 00 00 00 48 8b bb 88 00 00 00"),
+                 bytes.fromhex("85 c0 90 90 90 90 90 90 48 8b bb 88 00 00 00")),
+
+                ("Patch 5 (IOSurfaceImageBackingFactory target 0x84f5)",
+                 bytes.fromhex("45 8b 47 38 4c 89 6c 24 18 89 44 24 10 0f b6 45 cc 89 44 24 08 c7 04 24 01 00 00 00"),
+                 bytes.fromhex("41 b8 f5 84 00 00 4c 89 6c 24 18 89 44 24 10 89 04 24 0f b6 45 cc 89 44 24 08 66 90")),
+
+                ("Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget)",
+                 bytes.fromhex("55 48 89 e5 41 56 53 48 81 ec 30 01 00 00 81 fe e1 0d 00 00"),
+                 bytes.fromhex("b0 01 c3 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90")),
+
+                ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)",
+                 bytes.fromhex("8b 45 d0 89 83 88 01 00 00 8b 45 cc 88 83 8c 01 00 00 45 31 f6 44 89 b3 90 01 00 00 66 c7 83 94 01 00 00 00 00"),
+                 bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45 cc 88 83 8c 01 00 00 45 31 f6 44 89 b3 90 01 00 00 66 44 89 b3 94 01 00 00"))
+            ]
+
         return [
             ("Patch 1 (GetAllowedGLImplementation)",
              bytes.fromhex("84 c0 74 0f 80 7d b8 00 74 cd 48 8b 45 b0"),

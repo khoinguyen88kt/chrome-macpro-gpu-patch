@@ -63,12 +63,13 @@ bash setup_certificate.sh
 Make sure the browser you wish to patch is closed, then run:
 
 ```bash
-# Auto-detect and patch ALL installed browsers (Chrome, Opera, etc.)
+# Auto-detect and patch ALL installed browsers (Chrome, Opera, Brave, etc.)
 python3 patch.py
 
 # Or patch a specific browser:
 python3 patch.py chrome
 python3 patch.py opera
+python3 patch.py brave
 ```
 *The script will automatically create safe backups, scan and patch framework binaries, compile the optimized native C launcher, and re-sign the application bundle with `LocalCodeSigner`.*
 
@@ -78,11 +79,13 @@ python3 patch.py opera
 | `python3 patch.py` | Auto-detects and patches all supported browsers installed on your Mac. |
 | `python3 patch.py chrome` | Patches Google Chrome only. |
 | `python3 patch.py opera` | Patches Opera Browser only. |
+| `python3 patch.py brave` | Patches Brave Browser only. |
 | `python3 patch.py --list` | Lists all supported browsers and checks their installation status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
+| `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
 
 > [!NOTE]
 > **Automatic Backup & Rollback**:

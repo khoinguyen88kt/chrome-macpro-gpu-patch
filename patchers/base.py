@@ -225,6 +225,9 @@ class BaseBrowserPatcher:
         fw_bin = self.get_framework_bin(version)
         launcher_dst = self.get_launcher_dst()
 
+        print(f"[*] Stripping quarantine and extended attributes from {self.name}...")
+        run(f'xattr -cr "{self.app_path}"')
+
         print(f"[*] Re-signing {self.name} components with {self.certificate_name}...")
 
         # 1. Sign all dylibs in Libraries/
