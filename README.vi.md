@@ -60,23 +60,33 @@ bash setup_certificate.sh
 ```
 
 ### Bước 3: Chạy script tự động vá & cài đặt launcher
-Đảm bảo đã thoát hoàn toàn Google Chrome, sau đó chạy:
-```bash
-python3 auto_patch_chrome.py
-```
-*Script sẽ tự động sao chép dylib ANGLE sạch, tạo bản backup sạch an toàn, quét và vá mã nhị phân Chrome Framework, biên dịch launcher C native và ký số lại toàn bộ ứng dụng Chrome.*
+Đảm bảo đã thoát hoàn toàn trình duyệt bạn muốn vá, sau đó chạy:
 
-#### Các Tùy Chọn Dòng Lệnh & Cơ Chế Sao Lưu An Toàn:
-| Lệnh / Cờ | Mô tả chức năng |
+```bash
+# Tự động phát hiện và vá TẤT CẢ các trình duyệt đã cài đặt (Chrome, Opera...)
+python3 patch.py
+
+# Hoặc chỉ vá một trình duyệt cụ thể:
+python3 patch.py chrome
+python3 patch.py opera
+```
+*Script sẽ tự động tạo bản backup an toàn, quét và vá mã nhị phân Framework, biên dịch launcher C native và ký số lại toàn bộ bundle bằng `LocalCodeSigner`.*
+
+#### Các Tùy Chọn Dòng Lệnh & Lệnh Quản Trị:
+| Lệnh | Mô tả chức năng |
 | :--- | :--- |
-| `python3 auto_patch_chrome.py` | Chế độ mặc định: tạo bản backup sạch, áp dụng cả 7 bản vá và ký số lại Chrome. |
-| `python3 auto_patch_chrome.py --check` | Kiểm tra xem Chrome phiên bản hiện tại đã được vá hoàn chỉnh hay chưa. |
-| `python3 auto_patch_chrome.py --restore` | Khôi phục lại Google Chrome Framework gốc ban đầu của Google từ bản backup sạch. |
-| `python3 auto_patch_chrome.py --auto` | Chế độ chạy nền tự động dành cho dịch vụ LaunchAgent. |
+| `python3 patch.py` | Tự động phát hiện và vá tất cả trình duyệt được hỗ trợ đã cài trên Mac. |
+| `python3 patch.py chrome` | Chỉ vá riêng Google Chrome. |
+| `python3 patch.py opera` | Chỉ vá riêng Opera Browser. |
+| `python3 patch.py --list` | Liệt kê danh sách các trình duyệt hỗ trợ và trạng thái cài đặt. |
+| `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
+| `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
+| `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
+| `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
 
 > [!NOTE]
 > **Tự động sao lưu & Khôi phục (Rollback) khi gặp lỗi**:
-> Trước khi sửa đổi bất kỳ byte nào, script luôn tự động sao lưu framework sạch gốc vào thư mục `~/.chrome_macpro_backups/Google_Chrome_Framework_<version>.bak`. Nếu xảy ra bất kỳ lỗi nào trong quá trình vá hoặc biên dịch launcher, script sẽ **ngay lập tức tự động rollback** về bản gốc sạch, đảm bảo ứng dụng không bao giờ bị lỗi hỏng dở dang.
+> Trước khi sửa đổi bất kỳ byte nào, script luôn tự động sao lưu framework và launcher sạch gốc vào thư mục `~/.<browser>_macpro_backups/`. Nếu xảy ra bất kỳ lỗi nào trong quá trình vá hoặc biên dịch, script sẽ **ngay lập tức tự động rollback** về bản gốc sạch, đảm bảo ứng dụng không bao giờ bị lỗi hỏng dở dang.
 
 ### Bước 4: Khởi động Chrome & Xác thực
 1. Mở Google Chrome từ `/Applications/Google Chrome.app`.
@@ -197,12 +207,20 @@ static const char *kInjectedFlags[] = {
 
 ```
 chrome-macpro-gpu-patch/
-├── README.md               # Bản tiếng Anh (Default English documentation)
-├── README.vi.md            # Bản tiếng Việt (Vietnamese documentation)
-├── auto_patch_chrome.py    # Script Python quét mẫu, vá nhị phân và ký số tự động
-├── chrome_main.c           # Mã nguồn C của launcher inject cờ đồ họa tối ưu
-├── setup_certificate.sh    # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
-├── angle_dylibs/           # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)
+├── patch.py                # Điểm vào chính (CLI hợp nhất vá đa trình duyệt)
+├── auto_patch_chrome.py     # Wrapper tương thích ngược cho LaunchAgent Chrome
+├── patchers/                # Thư mục module hóa từng trình duyệt
+│   ├── __init__.py         # Danh bạ đăng ký các trình duyệt hỗ trợ
+│   ├── base.py             # Engine BaseBrowserPatcher cốt lõi (ký số, backup, logic vá)
+│   ├── chrome.py           # Module vá riêng cho Google Chrome (7 patterns)
+│   └── opera.py            # Module vá riêng cho Opera Browser (5 patterns)
+├── chrome_main.c            # Bộ nạp Native C Launcher của Google Chrome
+├── opera_main.c             # Bộ nạp Native C Launcher của Opera Browser
+├── setup_certificate.sh     # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
+├── angle_dylibs/            # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)
+├── install_auto_patch_service.sh   # Cài đặt dịch vụ chạy ngầm LaunchAgent
+├── uninstall_auto_patch_service.sh # Gỡ bỏ dịch vụ chạy ngầm LaunchAgent
+├── docs/images/             # Hình ảnh kiểm thử và tư liệu minh họa
 ├── .gitignore              # Bỏ qua các file rác và file nhị phân tạm
 └── LICENSE                 # Giấy phép mã nguồn mở MIT
 ```

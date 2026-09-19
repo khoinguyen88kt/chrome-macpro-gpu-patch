@@ -60,23 +60,33 @@ bash setup_certificate.sh
 ```
 
 ### Step 3: Run the Automated Patcher
-Make sure Google Chrome is completely closed, then run:
-```bash
-python3 auto_patch_chrome.py
-```
-*The script will automatically copy clean ANGLE dylibs, create a safe pristine backup, scan and patch the Chrome Framework binary, compile the optimized native C launcher, and re-sign the entire Chrome application bundle.*
+Make sure the browser you wish to patch is closed, then run:
 
-#### CLI Options & Backup Safety:
-| Command / Flag | Description |
+```bash
+# Auto-detect and patch ALL installed browsers (Chrome, Opera, etc.)
+python3 patch.py
+
+# Or patch a specific browser:
+python3 patch.py chrome
+python3 patch.py opera
+```
+*The script will automatically create safe backups, scan and patch framework binaries, compile the optimized native C launcher, and re-sign the application bundle with `LocalCodeSigner`.*
+
+#### CLI Options & Commands:
+| Command | Description |
 | :--- | :--- |
-| `python3 auto_patch_chrome.py` | Default mode: creates clean backup, applies all 7 patches, and re-signs Chrome. |
-| `python3 auto_patch_chrome.py --check` | Checks if current Chrome version is already fully patched and signed. |
-| `python3 auto_patch_chrome.py --restore` | Restores original unpatched Google Chrome Framework from backup. |
-| `python3 auto_patch_chrome.py --auto` | Background watcher mode used by LaunchAgent. |
+| `python3 patch.py` | Auto-detects and patches all supported browsers installed on your Mac. |
+| `python3 patch.py chrome` | Patches Google Chrome only. |
+| `python3 patch.py opera` | Patches Opera Browser only. |
+| `python3 patch.py --list` | Lists all supported browsers and checks their installation status. |
+| `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
+| `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
+| `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
+| `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
 
 > [!NOTE]
 > **Automatic Backup & Rollback**:
-> Before any binary modification, the script backs up the pristine original framework to `~/.chrome_macpro_backups/Google_Chrome_Framework_<version>.bak`. If any unexpected error occurs during patching or compiling, it **automatically rolls back** to the clean backup so Chrome is never left in a broken state.
+> Before any binary modification, pristine original frameworks and launchers are safely backed up to `~/.<browser>_macpro_backups/`. If any unexpected error occurs during patching or compiling, it **automatically rolls back** to the clean backup so the browser is never left in a broken state.
 
 ### Step 4: Launch Chrome & Verify
 1. Launch Google Chrome from `/Applications/Google Chrome.app`.
@@ -204,18 +214,26 @@ static const char *kInjectedFlags[] = {
 ---
 
 ## 📂 Repository Structure
-
-```
-chrome-macpro-gpu-patch/
-├── README.md               # English documentation (default)
-├── README.vi.md            # Vietnamese documentation (Tiếng Việt)
-├── auto_patch_chrome.py    # Automated pattern-scanning patcher and codesigner
-├── chrome_main.c           # Native C launcher with optimal injected flags
-├── setup_certificate.sh    # Script to create and install LocalCodeSigner certificate
-├── angle_dylibs/           # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)
-├── .gitignore              # Ignores build artifacts and temporary files
-└── LICENSE                 # MIT Open Source License
-```
+ 
+ ```
+ chrome-macpro-gpu-patch/
+ ├── patch.py                # Unified multi-browser patcher CLI (main entrypoint)
+ ├── auto_patch_chrome.py     # Backward-compatible Chrome LaunchAgent runner
+ ├── patchers/                # Modular browser patchers
+ │   ├── __init__.py         # Registry of supported browsers
+ │   ├── base.py             # BaseBrowserPatcher engine (codesigning, backup, patching)
+ │   ├── chrome.py           # Google Chrome patcher module (7 patterns)
+ │   └── opera.py            # Opera Browser patcher module (5 patterns)
+ ├── chrome_main.c            # Google Chrome native C launcher (flag injection)
+ ├── opera_main.c             # Opera Browser native C launcher (flag injection)
+ ├── setup_certificate.sh     # Script to create and install LocalCodeSigner certificate
+ ├── angle_dylibs/            # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)
+ ├── install_auto_patch_service.sh   # Background LaunchAgent service installer
+ ├── uninstall_auto_patch_service.sh # Background LaunchAgent service uninstaller
+ ├── docs/images/             # Verification screenshots and assets
+ ├── .gitignore              # Ignores build artifacts and temporary files
+ └── LICENSE                 # MIT Open Source License
+ ```
 
 ---
 
