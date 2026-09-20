@@ -207,13 +207,47 @@ class BaseBrowserPatcher:
         """Return list of (name, orig_bytes, patched_bytes) or regex scanner callable."""
         raise NotImplementedError
 
+    def ensure_certificate(self):
+        """Ensures the code-signing certificate exists in the user keychain, creating it if needed."""
+        res = subprocess.run(
+            ["security", "find-certificate", "-c", self.certificate_name],
+            capture_output=True, text=True
+        )
+        if res.returncode != 0:
+            cert_script = os.path.join(self.repo_root, "setup_certificate.sh")
+            if os.path.exists(cert_script):
+                print(f"[*] Certificate '{self.certificate_name}' not found. Automatically setting up certificate...")
+                subprocess.run(["bash", cert_script], check=True)
+
     def pre_patch_hook(self, version):
-        """Hook called before binary patching (e.g. copying reference dylibs)."""
-        pass
+        """Standard hook: inject clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)."""
+        ver_dir = self.get_ver_dir(version)
+        lib_dir = os.path.join(ver_dir, "Libraries")
+        os.makedirs(lib_dir, exist_ok=True)
+        ref_angle_lib = os.path.join(self.repo_root, "angle_dylibs")
+
+        for dylib in ["libEGL.dylib", "libGLESv2.dylib"]:
+            src = os.path.join(ref_angle_lib, dylib)
+            dst = os.path.join(lib_dir, dylib)
+            if os.path.exists(src):
+                print(f"[*] Copying clean {dylib} to {self.name} {version}...")
+                safe_copy(src, dst)
+            else:
+                print(f"[!] Warning: Reference dylib not found at {src}")
 
     def post_patch_hook(self, version):
-        """Hook called after patching before codesigning (e.g. symlink fixes)."""
-        pass
+        """Standard hook: ensure Versions/Current and framework root symlinks exist."""
+        # 1. Ensure Versions/Current symlink points to version
+        current_link = os.path.join(self.versions_dir, "Current")
+        if not os.path.islink(current_link) or not os.path.exists(current_link):
+            print(f"[*] Ensuring Versions/Current symlink points to {version}...")
+            run(f'ln -sfn "{version}" "{current_link}"')
+
+        # 2. Ensure Libraries symlink exists at framework root
+        fw_lib_link = os.path.join(self.framework_dir, "Libraries")
+        if not os.path.islink(fw_lib_link) or not os.path.exists(fw_lib_link):
+            print(f"[*] Ensuring Libraries symlink exists at {self.name} Framework root...")
+            run(f'ln -sfn "Versions/Current/Libraries" "{fw_lib_link}"')
 
     def apply_binary_patches(self, version):
         fw_bin = self.get_framework_bin(version)
@@ -351,6 +385,9 @@ class BaseBrowserPatcher:
                 print(f"[*] {self.name} {current_ver} is already patched. Nothing to do.")
                 return 0
             print(f"[!] Unpatched {self.name} detected ({current_ver})! Starting auto-patch...")
+
+        # 0. Ensure Code Signing Certificate
+        self.ensure_certificate()
 
         # 1. Backup
         self.backup_original(current_ver)
