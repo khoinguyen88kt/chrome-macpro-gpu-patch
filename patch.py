@@ -75,6 +75,7 @@ def main():
     parser.add_argument("--list", action="store_true", help="List supported and detected browsers")
     parser.add_argument("--check", action="store_true", help="Check if target browser(s) are already patched")
     parser.add_argument("--restore", action="store_true", help="Restore original binaries from backup")
+    parser.add_argument("--force", action="store_true", help="Force re-applying patches even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
     parser.add_argument("--notify", action="store_true", help="Send macOS system notification on success")
 
@@ -139,7 +140,8 @@ def main():
             auto=args.auto,
             notify_user=args.notify,
             check_only=args.check,
-            restore_mode=args.restore
+            restore_mode=args.restore,
+            force=args.force
         )
         if code != 0:
             overall_exit_code = code

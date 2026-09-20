@@ -303,8 +303,10 @@ class BaseBrowserPatcher:
             return False
 
         print(f"[*] Compiling native C launcher for {self.name}...")
-        res = run(f'clang -O2 "{launcher_src_path}" -o "{launcher_dst}"')
+        tmp_launcher = launcher_dst + ".new"
+        res = run(f'clang -O2 "{launcher_src_path}" -o "{tmp_launcher}"')
         if res.returncode == 0:
+            os.replace(tmp_launcher, launcher_dst)
             print(f"[+] {self.name} launcher installed successfully!")
             return True
         else:
@@ -355,7 +357,7 @@ class BaseBrowserPatcher:
             print(f"[!] Codesign verification warning: {v.stderr.strip()}")
             return False
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False):
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
@@ -384,10 +386,12 @@ class BaseBrowserPatcher:
         if auto:
             time.sleep(3)
             current_ver = self.get_current_version()
+
+        if not force:
             if self.is_already_patched(current_ver):
-                print(f"[*] {self.name} {current_ver} is already patched. Nothing to do.")
+                print(f"[+] {self.name} {current_ver} is ALREADY patched. Nothing to do (use --force to re-apply).")
                 return 0
-            print(f"[!] Unpatched {self.name} detected ({current_ver})! Starting auto-patch...")
+            print(f"[!] Unpatched {self.name} detected ({current_ver})! Starting patch...")
 
         # 0. Ensure Code Signing Certificate
         self.ensure_certificate()
