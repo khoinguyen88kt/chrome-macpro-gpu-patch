@@ -229,11 +229,14 @@ class BaseBrowserPatcher:
         for dylib in ["libEGL.dylib", "libGLESv2.dylib"]:
             src = os.path.join(ref_angle_lib, dylib)
             dst = os.path.join(lib_dir, dylib)
-            if os.path.exists(src):
-                print(f"[*] Copying clean {dylib} to {self.name} {version}...")
-                safe_copy(src, dst)
+            if not os.path.exists(dst):
+                if os.path.exists(src):
+                    print(f"[*] {self.name} {version} is missing {dylib}. Injecting bundled ANGLE dylib...")
+                    safe_copy(src, dst)
+                else:
+                    print(f"[!] Warning: Reference dylib not found at {src}")
             else:
-                print(f"[!] Warning: Reference dylib not found at {src}")
+                print(f"[*] {self.name} {version} has native {dylib}, keeping original.")
 
     def post_patch_hook(self, version):
         """Standard hook: ensure Versions/Current and framework root symlinks exist."""
