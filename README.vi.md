@@ -83,10 +83,22 @@ python3 patch.py brave
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Vá trình duyệt ở thư mục cài đặt tùy chỉnh / không chuẩn. |
 | `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
+| `python3 patch.py --update` | Tự động kéo mã nguồn mới nhất từ GitHub về và cập nhật tool. |
+| `python3 patch.py --version` | Hiển thị phiên bản hiện tại của bộ công cụ vá. |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
+
+### 🔄 Cập nhật phiên bản mới của Tool (Update)
+Mỗi lần chạy, script sẽ tự động kiểm tra xem trên GitHub có bản phát hành mới hơn hay không. Để cập nhật:
+- **Nếu bạn cài đặt qua Git (`git clone`)**:
+  ```bash
+  python3 patch.py --update
+  # Hoặc: git pull origin main && python3 patch.py
+  ```
+- **Nếu bạn tải về dưới dạng file ZIP**:
+  Chỉ cần truy cập trang [GitHub Releases](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases), tải file ZIP phiên bản mới nhất về giải nén và chạy `python3 patch.py`.
 
 > [!NOTE]
 > **Tự động sao lưu & Khôi phục (Rollback) khi gặp lỗi**:

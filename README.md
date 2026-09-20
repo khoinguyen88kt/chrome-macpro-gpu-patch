@@ -83,10 +83,22 @@ python3 patch.py brave
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
+| `python3 patch.py --update` | Updates the patcher to the latest version from GitHub. |
+| `python3 patch.py --version` | Displays current patcher version. |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
+
+### 🔄 Updating the Patcher
+The patcher automatically checks for updates whenever run. To update:
+- **If you cloned via Git**:
+  ```bash
+  python3 patch.py --update
+  # Or: git pull origin main && python3 patch.py
+  ```
+- **If you downloaded a ZIP**:
+  Download the latest release ZIP from the [GitHub Releases page](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases), unpack it, and run `python3 patch.py`.
 
 > [!NOTE]
 > **Automatic Backup & Rollback**:
