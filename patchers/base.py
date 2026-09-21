@@ -187,17 +187,29 @@ class BaseBrowserPatcher:
         if os.path.exists(fw_bak):
             print(f"[*] Restoring {self.name} Framework from backup...")
             safe_copy(fw_bak, fw_bin)
-            run(f'codesign --force --sign "{self.certificate_name}" "{fw_bin}"')
             restored = True
         if os.path.exists(launcher_bak):
             print(f"[*] Restoring {self.name} launcher from backup...")
             safe_copy(launcher_bak, launcher_dst)
-            run(f'codesign --force --sign "{self.certificate_name}" "{launcher_dst}"')
             restored = True
 
         if restored:
-            run(f'codesign --force --deep --sign "{self.certificate_name}" "{self.app_path}"')
-            print(f"[+] Restored {self.name} {version} successfully from backup!")
+            print(f"[*] Stripping quarantine and extended attributes from {self.name}...")
+            run(f'xattr -cr "{self.app_path}"')
+            print(f"[*] Re-signing restored {self.name} with {self.certificate_name}...")
+            run(f'codesign --force --sign "{self.certificate_name}" "{fw_bin}"')
+            run(f'codesign --force --sign "{self.certificate_name}" "{launcher_dst}"')
+            res = run(f'codesign --force --deep --sign "{self.certificate_name}" "{self.app_path}"')
+            if res.returncode != 0:
+                print(f"[*] Retrying with ad-hoc signature as fallback...")
+                run(f'codesign --force --deep -s - "{self.app_path}"')
+            
+            # Verify signature
+            v = run(f'codesign -v "{self.app_path}"')
+            if v.returncode == 0:
+                print(f"[+] Restored {self.name} {version} successfully and verified valid signature!")
+            else:
+                print(f"[!] Warning: Restored {self.name} signature verification reported: {v.stderr.strip()}")
             return True
         else:
             print(f"[-] No backup found for {self.name} {version}.")
