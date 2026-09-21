@@ -288,6 +288,13 @@ class BaseBrowserPatcher:
 
     def apply_binary_patches(self, version):
         fw_bin = self.get_framework_bin(version)
+        backup_dir = self.get_backup_dir(version)
+        fw_bak = os.path.join(backup_dir, f"{self.framework_binary_name}.original")
+
+        if os.path.exists(fw_bak):
+            print(f"[*] Resetting to clean original {self.name} framework from backup before patching...")
+            safe_copy(fw_bak, fw_bin)
+
         if not os.path.exists(fw_bin):
             print(f"[!] Error: Framework binary not found at {fw_bin}")
             return False
