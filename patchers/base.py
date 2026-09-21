@@ -209,10 +209,13 @@ class BaseBrowserPatcher:
 
     def ensure_certificate(self):
         """Ensures the code-signing certificate exists in the user keychain, creating it if needed."""
-        res = subprocess.run(
-            ["security", "find-certificate", "-c", self.certificate_name],
-            capture_output=True, text=True
-        )
+        sudo_user = os.environ.get("SUDO_USER")
+        if sudo_user and sudo_user != "root":
+            check_cmd = ["sudo", "-u", sudo_user, "security", "find-certificate", "-c", self.certificate_name]
+        else:
+            check_cmd = ["security", "find-certificate", "-c", self.certificate_name]
+
+        res = subprocess.run(check_cmd, capture_output=True, text=True)
         if res.returncode != 0:
             cert_script = os.path.join(self.repo_root, "setup_certificate.sh")
             if os.path.exists(cert_script):
