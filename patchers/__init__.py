@@ -5,11 +5,13 @@ from .base import BaseBrowserPatcher
 from .chrome import ChromePatcher
 from .opera import OperaPatcher
 from .brave import BravePatcher
+from .helium import HeliumPatcher
 
 AVAILABLE_PATCHERS = {
     "chrome": ChromePatcher,
     "opera": OperaPatcher,
     "brave": BravePatcher,
+    "helium": HeliumPatcher,
 }
 
-__all__ = ["BaseBrowserPatcher", "ChromePatcher", "OperaPatcher", "BravePatcher", "AVAILABLE_PATCHERS"]
+__all__ = ["BaseBrowserPatcher", "ChromePatcher", "OperaPatcher", "BravePatcher", "HeliumPatcher", "AVAILABLE_PATCHERS"]
