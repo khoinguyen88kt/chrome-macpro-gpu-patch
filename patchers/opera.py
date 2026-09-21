@@ -67,27 +67,6 @@ class OperaPatcher(BaseBrowserPatcher):
             else:
                 print(f"[!] Warning: Reference dylib not found at {src}")
 
-    def post_patch_hook(self, version):
-        backup_dir = self.get_backup_dir(version)
-        # 1. Ensure obsolete versions don't break bundle signature
-        if os.path.isdir(self.versions_dir):
-            for d in os.listdir(self.versions_dir):
-                d_path = os.path.join(self.versions_dir, d)
-                if os.path.isdir(d_path) and not d.startswith(".") and d != "Current" and d != version:
-                    print(f"[*] Moving obsolete version {d} out of bundle to {backup_dir}...")
-                    run(f'mv "{d_path}" "{backup_dir}/"')
-
-        # 2. Ensure Versions/Current symlink points to version
-        current_link = os.path.join(self.versions_dir, "Current")
-        if not os.path.islink(current_link) or not os.path.exists(current_link):
-            print(f"[*] Ensuring Versions/Current symlink points to {version}...")
-            run(f'ln -sfn "{version}" "{current_link}"')
-
-        # 3. Ensure Libraries symlink exists at framework root
-        fw_lib_link = os.path.join(self.framework_dir, "Libraries")
-        if not os.path.islink(fw_lib_link) or not os.path.exists(fw_lib_link):
-            print("[*] Ensuring Libraries symlink exists at Opera Framework root...")
-            run(f'ln -sfn "Versions/Current/Libraries" "{fw_lib_link}"')
 
     def get_patches(self, version):
         def patch_p1_allowed_gl(data: bytearray):

@@ -176,6 +176,21 @@ class BaseBrowserPatcher:
             print(f"[*] Backing up original launcher to {launcher_bak}...")
             safe_copy(launcher_dst, launcher_bak)
 
+    def clean_obsolete_versions(self, version):
+        """Moves obsolete version directories out of the framework bundle to prevent codesign verification failures."""
+        backup_dir = self.get_backup_dir(version)
+        os.makedirs(backup_dir, exist_ok=True)
+        if os.path.isdir(self.versions_dir):
+            for d in os.listdir(self.versions_dir):
+                d_path = os.path.join(self.versions_dir, d)
+                if os.path.isdir(d_path) and not d.startswith(".") and d != "Current" and d != version:
+                    print(f"[*] Moving obsolete version {d} out of bundle to {backup_dir}...")
+                    dst_obsolete = os.path.join(backup_dir, d)
+                    if os.path.exists(dst_obsolete):
+                        run(f'mv "{d_path}" "{dst_obsolete}_{int(time.time())}"')
+                    else:
+                        run(f'mv "{d_path}" "{backup_dir}/"')
+
     def restore(self, version):
         backup_dir = self.get_backup_dir(version)
         fw_bak = os.path.join(backup_dir, f"{self.framework_binary_name}.original")
@@ -194,6 +209,7 @@ class BaseBrowserPatcher:
             restored = True
 
         if restored:
+            self.clean_obsolete_versions(version)
             print(f"[*] Stripping quarantine and extended attributes from {self.name}...")
             run(f'xattr -cr "{self.app_path}"')
             print(f"[*] Re-signing restored {self.name} with {self.certificate_name}...")
@@ -254,14 +270,17 @@ class BaseBrowserPatcher:
                 print(f"[*] {self.name} {version} has native {dylib}, keeping original.")
 
     def post_patch_hook(self, version):
-        """Standard hook: ensure Versions/Current and framework root symlinks exist."""
-        # 1. Ensure Versions/Current symlink points to version
+        """Standard hook: clean obsolete versions, ensure Versions/Current and framework root symlinks exist."""
+        # 1. Ensure obsolete versions don't break bundle signature
+        self.clean_obsolete_versions(version)
+
+        # 2. Ensure Versions/Current symlink points to version
         current_link = os.path.join(self.versions_dir, "Current")
         if not os.path.islink(current_link) or not os.path.exists(current_link):
             print(f"[*] Ensuring Versions/Current symlink points to {version}...")
             run(f'ln -sfn "{version}" "{current_link}"')
 
-        # 2. Ensure Libraries symlink exists at framework root
+        # 3. Ensure Libraries symlink exists at framework root
         fw_lib_link = os.path.join(self.framework_dir, "Libraries")
         if not os.path.islink(fw_lib_link) or not os.path.exists(fw_lib_link):
             print(f"[*] Ensuring Libraries symlink exists at {self.name} Framework root...")

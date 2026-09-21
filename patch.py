@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 REPO_URL = "https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
