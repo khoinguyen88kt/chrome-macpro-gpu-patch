@@ -1,10 +1,11 @@
-# Google Chrome Hardware Acceleration Patch for Legacy Mac GPUs
-### Optimized for Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) on macOS Sequoia & Sonoma via OCLP
+# Chromium Browsers Hardware Acceleration Patch for Legacy Mac GPUs
+### Supports Google Chrome, Brave, Opera & Helium Browser on macOS Sequoia & Sonoma via OCLP
+### Optimized for Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Legacy Metal 1 GPUs
 
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20(Late%202013)-lightgrey.svg)](#)
-[![GPU](https://img.shields.io/badge/GPU-AMD%20FirePro%20D700%20%2F%20D500%20%2F%20D300-red.svg)](#)
-[![Chrome](https://img.shields.io/badge/Chrome-130%2B%20(Verified%20on%20153.x)-green.svg)](#)
+[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium-orange.svg)](#)
+[![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20%7C%20Legacy%20Macs-lightgrey.svg)](#)
+[![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 ---
@@ -157,6 +158,13 @@ Fully tested and working on **Google Chrome 153.0.8010.53 (Official Build) (x86_
   <img src="docs/images/chrome_version_tested.png" alt="Google Chrome Version 153 Tested" width="80%">
 </p>
 
+### 5. Helium Browser Hardware Acceleration Restored (`helium://gpu`)
+Full hardware acceleration enabled on Helium Browser (Compositing, ANGLE OpenGL, WebGL, WebGPU, GaneshGL) on macOS Sequoia.
+
+<p align="center">
+  <img src="docs/images/helium_gpu_status.png" alt="Helium GPU Status" width="90%">
+</p>
+
 ---
 
 ## 🔬 Technical Deep Dive
@@ -234,25 +242,29 @@ static const char *kInjectedFlags[] = {
 
 ## 📂 Repository Structure
  
- ```
- chrome-macpro-gpu-patch/
- ├── patch.py                # Unified multi-browser patcher CLI (main entrypoint)
- ├── auto_patch_chrome.py     # Backward-compatible Chrome LaunchAgent runner
- ├── patchers/                # Modular browser patchers
- │   ├── __init__.py         # Registry of supported browsers
- │   ├── base.py             # BaseBrowserPatcher engine (codesigning, backup, patching)
- │   ├── chrome.py           # Google Chrome patcher module (7 patterns)
- │   └── opera.py            # Opera Browser patcher module (5 patterns)
- ├── chrome_main.c            # Google Chrome native C launcher (flag injection)
- ├── opera_main.c             # Opera Browser native C launcher (flag injection)
- ├── setup_certificate.sh     # Script to create and install LocalCodeSigner certificate
- ├── angle_dylibs/            # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)
- ├── install_auto_patch_service.sh   # Background LaunchAgent service installer
- ├── uninstall_auto_patch_service.sh # Background LaunchAgent service uninstaller
- ├── docs/images/             # Verification screenshots and assets
- ├── .gitignore              # Ignores build artifacts and temporary files
- └── LICENSE                 # MIT Open Source License
- ```
+```
+chrome-macpro-gpu-patch/
+├── patch.py                        # Unified multi-browser patcher CLI (main entrypoint)
+├── auto_patch_chrome.py            # Backward-compatible Chrome LaunchAgent runner
+├── patchers/                       # Modular browser patchers
+│   ├── __init__.py                 # Registry of supported browsers
+│   ├── base.py                     # BaseBrowserPatcher engine (codesigning, backup, patching)
+│   ├── chrome.py                   # Google Chrome patcher module (7 patterns)
+│   ├── brave.py                    # Brave Browser patcher module (7 patterns)
+│   ├── opera.py                    # Opera Browser patcher module (5 patterns + dylib inject)
+│   └── helium.py                   # Helium Browser patcher module (7 patterns + GL factory bypass)
+├── chrome_main.c                   # Google Chrome native C launcher (flag injection)
+├── brave_main.c                    # Brave Browser native C launcher (flag injection)
+├── opera_main.c                    # Opera Browser native C launcher (flag injection)
+├── helium_main.c                   # Helium Browser native C launcher (flag injection)
+├── setup_certificate.sh            # Script to create and install LocalCodeSigner certificate
+├── angle_dylibs/                   # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)
+├── install_auto_patch_service.sh   # Background LaunchAgent service installer
+├── uninstall_auto_patch_service.sh # Background LaunchAgent service uninstaller
+├── docs/images/                    # Verification screenshots and assets
+├── .gitignore                      # Ignores build artifacts and temporary files
+└── LICENSE                         # MIT Open Source License
+```
 
 ---
 

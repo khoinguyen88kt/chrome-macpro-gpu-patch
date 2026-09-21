@@ -1,11 +1,12 @@
-# Bản Vá Tăng Tốc Phần Cứng Google Chrome Cho GPU Mac Đời Cũ
-### Tối ưu hóa cho Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) trên macOS Sequoia & Sonoma (OCLP)
+# Bản Vá Tăng Tốc Phần Cứng Chromium Cho GPU Mac Đời Cũ
+### Hỗ trợ Google Chrome, Brave, Opera & Helium Browser trên macOS Sequoia & Sonoma (OCLP)
+### Tối ưu hóa cho Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Các dòng Mac Metal 1
 
 [![Platform](https://img.shields.io/badge/Nền_tảng-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Hardware](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20(2013)-lightgrey.svg)](#)
-[![GPU](https://img.shields.io/badge/GPU-AMD%20FirePro%20D700%20%2F%20D500%20%2F%20D300-red.svg)](#)
-[![Chrome](https://img.shields.io/badge/Chrome-130%2B%20(Đã_test_153.x)-green.svg)](#)
-[![License](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
+[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium-orange.svg)](#)
+[![Thiết bị](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20%7C%20Mac%20đời_cũ-lightgrey.svg)](#)
+[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.3.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Giấy phép](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
 
 ---
 
@@ -156,6 +157,13 @@ Kiểm thử thực tế trên Mac Pro 6,1 (Late 2013 "Thùng rác") chạy macO
   <img src="docs/images/chrome_version_tested.png" alt="Google Chrome Phiên bản 153 Đã kiểm thử" width="80%">
 </p>
 
+### 5. Khôi Phục Tăng Tốc Đồ Họa Trên Helium Browser (`helium://gpu`)
+Kích hoạt thành công tăng tốc phần cứng 100% trên Helium Browser (Compositing, ANGLE OpenGL, WebGL, WebGPU, GaneshGL) trên macOS Sequoia.
+
+<p align="center">
+  <img src="docs/images/helium_gpu_status.png" alt="Helium GPU Status" width="90%">
+</p>
+
 ---
 
 ## 🔬 Chi Tiết Kỹ Thuật & Nguyên Lý Khắc Phục (Technical Deep Dive)
@@ -226,22 +234,26 @@ static const char *kInjectedFlags[] = {
 
 ```
 chrome-macpro-gpu-patch/
-├── patch.py                # Điểm vào chính (CLI hợp nhất vá đa trình duyệt)
-├── auto_patch_chrome.py     # Wrapper tương thích ngược cho LaunchAgent Chrome
-├── patchers/                # Thư mục module hóa từng trình duyệt
-│   ├── __init__.py         # Danh bạ đăng ký các trình duyệt hỗ trợ
-│   ├── base.py             # Engine BaseBrowserPatcher cốt lõi (ký số, backup, logic vá)
-│   ├── chrome.py           # Module vá riêng cho Google Chrome (7 patterns)
-│   └── opera.py            # Module vá riêng cho Opera Browser (5 patterns)
-├── chrome_main.c            # Bộ nạp Native C Launcher của Google Chrome
-├── opera_main.c             # Bộ nạp Native C Launcher của Opera Browser
-├── setup_certificate.sh     # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
-├── angle_dylibs/            # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)
+├── patch.py                        # Điểm vào chính (CLI hợp nhất vá đa trình duyệt)
+├── auto_patch_chrome.py            # Wrapper tương thích ngược cho LaunchAgent Chrome
+├── patchers/                       # Thư mục module hóa từng trình duyệt
+│   ├── __init__.py                 # Danh bạ đăng ký các trình duyệt hỗ trợ
+│   ├── base.py                     # Engine BaseBrowserPatcher cốt lõi (ký số, backup, logic vá)
+│   ├── chrome.py                   # Module vá riêng cho Google Chrome (7 patterns)
+│   ├── brave.py                    # Module vá riêng cho Brave Browser (7 patterns)
+│   ├── opera.py                    # Module vá riêng cho Opera Browser (5 patterns + dylib inject)
+│   └── helium.py                   # Module vá riêng cho Helium Browser (7 patterns + GL factory bypass)
+├── chrome_main.c                   # Bộ nạp Native C Launcher của Google Chrome
+├── brave_main.c                    # Bộ nạp Native C Launcher của Brave Browser
+├── opera_main.c                    # Bộ nạp Native C Launcher của Opera Browser
+├── helium_main.c                   # Bộ nạp Native C Launcher của Helium Browser
+├── setup_certificate.sh            # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
+├── angle_dylibs/                   # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)
 ├── install_auto_patch_service.sh   # Cài đặt dịch vụ chạy ngầm LaunchAgent
 ├── uninstall_auto_patch_service.sh # Gỡ bỏ dịch vụ chạy ngầm LaunchAgent
-├── docs/images/             # Hình ảnh kiểm thử và tư liệu minh họa
-├── .gitignore              # Bỏ qua các file rác và file nhị phân tạm
-└── LICENSE                 # Giấy phép mã nguồn mở MIT
+├── docs/images/                    # Hình ảnh kiểm thử và tư liệu minh họa
+├── .gitignore                      # Bỏ qua các file rác và file nhị phân tạm
+└── LICENSE                         # Giấy phép mã nguồn mở MIT
 ```
 
 ---
