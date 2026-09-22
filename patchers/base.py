@@ -30,6 +30,31 @@ def run(cmd):
 def safe_copy(src, dst):
     subprocess.run(["cp", "-f", src, dst], check=True)
 
+# --- Chromium milestone awareness -------------------------------------------
+# M141: the chrome://flags#use-angle entry was removed on macOS
+#       (https://chromium-review.googlesource.com/c/chromium/src/+/6965659)
+# M152: the ANGLE CGL/GL backend was removed from GetAllowedGLImplementations()
+#       in ui/gl/init/gl_factory_mac.cc
+#       (https://chromium-review.googlesource.com/c/chromium/src/+/7898546,
+#        https://issues.chromium.org/issues/519633318).
+#       From M152 on, --use-angle=gl is rejected rather than ignored:
+#       gl_factory.cc returns kGLImplementationNone and GPU init fails.
+ANGLE_FLAG_ENTRY_REMOVED_MILESTONE = 141
+ANGLE_GL_BACKEND_REMOVED_MILESTONE = 152
+VALIDATED_MILESTONES = (152, 153)
+
+
+def parse_milestone(version):
+    """Extract the Chromium milestone from a framework version directory name.
+
+    e.g. "153.0.8010.53" -> 153. Returns None if it cannot be determined.
+    """
+    if not version:
+        return None
+    head = str(version).split(".")[0]
+    return int(head) if head.isdigit() else None
+
+
 class BaseBrowserPatcher:
     name = "Base Chromium Browser"
     slug = "base"
@@ -286,6 +311,39 @@ class BaseBrowserPatcher:
             print(f"[*] Ensuring Libraries symlink exists at {self.name} Framework root...")
             run(f'ln -sfn "Versions/Current/Libraries" "{fw_lib_link}"')
 
+    def report_milestone_context(self, version):
+        """Print what the detected Chromium milestone implies for this patch.
+
+        Informational only - this never blocks patching. Even on builds where
+        the GL backend is still present, the launcher shim's zero-copy and
+        Skia Graphite mitigations remain useful.
+        """
+        milestone = parse_milestone(version)
+        lo, hi = VALIDATED_MILESTONES
+
+        if milestone is None:
+            print(f"[*] Could not determine Chromium milestone from version '{version}'.")
+            print(f"    Binary patterns are validated against M{lo}-M{hi}; proceeding anyway.")
+            return None
+
+        print(f"[*] Detected Chromium milestone: M{milestone}")
+
+        if milestone < ANGLE_GL_BACKEND_REMOVED_MILESTONE:
+            print(f"    Note: the ANGLE GL backend is still present in "
+                  f"GetAllowedGLImplementations() on M{milestone}.")
+            print("    '--use-angle=gl' works on this build WITHOUT binary patching.")
+            if milestone >= ANGLE_FLAG_ENTRY_REMOVED_MILESTONE:
+                print(f"    (chrome://flags#use-angle was removed on macOS in "
+                      f"M{ANGLE_FLAG_ENTRY_REMOVED_MILESTONE}, so pass the flag on the")
+                print("     command line rather than setting it in the browser UI.)")
+            print("    Patching is still worthwhile for the zero-copy / Skia Graphite fixes.")
+        elif milestone > hi:
+            print(f"    Warning: binary patterns are validated against M{lo}-M{hi}.")
+            print(f"    M{milestone} is newer - if a pattern below is not found, it has "
+                  f"most likely drifted and needs re-deriving.")
+
+        return milestone
+
     def apply_binary_patches(self, version):
         fw_bin = self.get_framework_bin(version)
         backup_dir = self.get_backup_dir(version)
@@ -298,6 +356,8 @@ class BaseBrowserPatcher:
         if not os.path.exists(fw_bin):
             print(f"[!] Error: Framework binary not found at {fw_bin}")
             return False
+
+        milestone = self.report_milestone_context(version)
 
         print(f"[*] Reading {self.name} framework binary ({os.path.getsize(fw_bin):,} bytes)...")
         with open(fw_bin, "rb") as f:
@@ -320,6 +380,9 @@ class BaseBrowserPatcher:
                         applied_count += 1
                     else:
                         print(f"[!] Warning: {p_name} pattern not found!")
+                        if milestone and milestone > VALIDATED_MILESTONES[1]:
+                            print(f"    (M{milestone} is newer than the validated "
+                                  f"M{VALIDATED_MILESTONES[0]}-M{VALIDATED_MILESTONES[1]} range.)")
             elif len(item) == 2 and callable(item[1]):
                 p_name, custom_func = item
                 success = custom_func(data)
