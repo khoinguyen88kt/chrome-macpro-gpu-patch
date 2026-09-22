@@ -39,12 +39,14 @@ class ChromePatcher(BaseBrowserPatcher):
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) is patched
+        # 2. Check if Pattern 1 (GetAllowedGLImplementation) and Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) are patched
+        p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
         p7_patched = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45 cc 88 83 8c 01 00 00")
         try:
             with open(fw_bin, "rb") as f:
-                f.seek(0x4000)
-                data = f.read(0x10051c10)
+                data = f.read()
+                if data.find(p1_patched) == -1 and not re.search(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", data, re.DOTALL):
+                    return False
                 if data.find(p7_patched) == -1:
                     return False
         except Exception:
@@ -69,16 +71,30 @@ class ChromePatcher(BaseBrowserPatcher):
 
     def get_patches(self, version):
         def patch_p1_allowed_gl(data: bytearray):
-            p1_re = re.compile(rb"\x84\xc0\x74(.)\x80\x7d(.)\x00\x74(.)\x48\x8b\x45(.)", re.DOTALL)
-            m = p1_re.search(data)
-            if m:
-                offset = m.start() + 2
-                data[offset:offset+2] = b"\x90\x90"
-                print(f"[+] Patch 1 (GetAllowedGLImplementation) applied successfully at {hex(offset)}!")
+            # 1. Exact pattern for Chromium 153.x / macOS x86_64
+            p1_exact = bytes.fromhex("84 c0 74 0f 80 7d b8 00 74 cd 48 8b 45 b0")
+            idx = data.find(p1_exact)
+            if idx != -1:
+                data[idx+2 : idx+4] = b"\x90\x90"
+                print(f"[+] Patch 1 (GetAllowedGLImplementation) applied successfully at {hex(idx)}!")
                 return True
-            if data.find(b"\x84\xc0\x90\x90\x80\x7d") != -1:
+            if data.find(bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")) != -1:
                 print("[*] Patch 1 (GetAllowedGLImplementation) is already applied.")
                 return True
+
+            # 2. Context-anchored pattern (shr rcx, 0x20; cmp rcx, 9) to ensure we are in GetAllowedGLImplementation
+            p1_anchor = re.compile(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0(\x74.)\x80\x7d(.)\x00", re.DOTALL)
+            m = p1_anchor.search(data)
+            if m:
+                sub_idx = data[m.start():m.end()].find(b"\x84\xc0")
+                target_offset = m.start() + sub_idx + 2
+                data[target_offset:target_offset+2] = b"\x90\x90"
+                print(f"[+] Patch 1 (GetAllowedGLImplementation) applied dynamically at {hex(target_offset)}!")
+                return True
+            if re.search(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", data, re.DOTALL):
+                print("[*] Patch 1 (GetAllowedGLImplementation) is already applied.")
+                return True
+
             print("[!] Warning: Patch 1 (GetAllowedGLImplementation) pattern not found!")
             return False
 
@@ -111,25 +127,26 @@ class ChromePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p3_gpumode(data: bytearray):
-            # 1. Dynamic jump displacement and register offset
-            p3_re = re.compile(rb"\x84\xc0\x0f\x84(....)\xc7\x45(.)\x03\x00\x00\x00", re.DOTALL)
-            m = p3_re.search(data)
+            # 1. Anchored dynamic pattern (with mov rax, [rbx+...])
+            p3_anchor = re.compile(rb"\x84\xc0(?:\x0f\x84....|\x90{6})\xc7\x45(.)[\x01\x03]\x00\x00\x00\x48\x8b\x83", re.DOTALL)
+            m = p3_anchor.search(data)
             if m:
                 offset_jmp = m.start() + 2
                 data[offset_jmp:offset_jmp+6] = b"\x90" * 6
-                offset_val = m.end() - 4
+                offset_val = m.start() + 11
                 data[offset_val] = 0x01
                 print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(offset_jmp)}!")
                 return True
-            if data.find(b"\x84\xc0\x90\x90\x90\x90\x90\x90\xc7\x45") != -1:
-                print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
-                return True
             # 2. Static pre-153 fallback
-            p3_static = bytes.fromhex("c7 45 ac 03 00 00 00")
+            p3_static = bytes.fromhex("84 c0 0f 84 8b 00 00 00 c7 45 ac 03 00 00 00 48 8b 83 38 07 00 00")
             idx = data.find(p3_static)
             if idx != -1:
-                data[idx+6] = 0x01
+                data[idx+2:idx+8] = b"\x90" * 6
+                data[idx+14] = 0x01
                 print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied at {hex(idx)}!")
+                return True
+            if data.find(bytes.fromhex("84 c0 90 90 90 90 90 90 c7 45 ac 01 00 00 00 48 8b 83 38 07 00 00")) != -1:
+                print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True
             print("[!] Warning: Patch 3 (GpuMode fallback to HARDWARE_GL) pattern not found!")
             return False
