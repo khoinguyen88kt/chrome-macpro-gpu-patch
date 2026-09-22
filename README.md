@@ -16,7 +16,13 @@
 
 ## 📖 Overview
 
-Starting with **Chromium 130+**, Google officially deprecated and disabled the ANGLE OpenGL backend on macOS, mandating modern **Metal / Skia Graphite**. For legacy Mac hardware running modern macOS through **OpenCore Legacy Patcher (OCLP)** — notably the **Mac Pro 6,1 (Late 2013 "Trash Can")** equipped with **Dual AMD FirePro D700 / D500 / D300 (GCN 1.0 architecture)** — these GPUs lack support for modern Metal features (Metal 2.4/3, ray-tracing, modern shader tile memory). Consequently:
+Across **Chromium 129–152**, Google progressively moved macOS onto Metal and ultimately removed the ANGLE OpenGL backend entirely:
+
+* **M129** — ANGLE/Metal became the default backend on all Macs (`kDefaultANGLEMetal` enabled unconditionally).
+* **M141** — the `chrome://flags#use-angle` entry was removed on macOS ([CL 6965659](https://chromium-review.googlesource.com/c/chromium/src/+/6965659)), so the backend could no longer be pinned from the browser UI.
+* **M152** — the ANGLE CGL/GL backend was removed from `GetAllowedGLImplementations()` in `ui/gl/init/gl_factory_mac.cc` ([CL 7898546](https://chromium-review.googlesource.com/c/chromium/src/+/7898546), [crbug 519633318](https://issues.chromium.org/issues/519633318)). From M152 onward `--use-angle=gl` is *rejected* rather than ignored — `ui/gl/init/gl_factory.cc` logs `Requested GL implementation ... not found in allowed implementations` and returns `kGLImplementationNone`, so GPU initialisation fails outright. This is precisely why patching `GetAllowedGLImplementations` is required on current builds rather than passing the flag alone.
+
+Note that on **Chromium 130–151 the `--use-angle=gl` flag still works on macOS unpatched**, which is useful when deciding whether a given browser build needs the full patch. For legacy Mac hardware running modern macOS through **OpenCore Legacy Patcher (OCLP)** — notably the **Mac Pro 6,1 (Late 2013 "Trash Can")** equipped with **Dual AMD FirePro D700 / D500 / D300 (GCN 1.0 architecture)** — these GPUs lack support for modern Metal features (Metal 2.4/3, ray-tracing, modern shader tile memory). Consequently:
 
 1. **OpenGL is completely disabled**: Chrome falls back to Software Rendering, causing severe lag, UI stutter, and massive CPU usage. Moving the mouse over UI elements or navigating to YouTube crashes the GPU process immediately.
 2. **Checkerboard / Black Grid Tiles**: Toolbars, bookmarks, tabs, and web pages are corrupted with repeating black rectangular grid artifacts due to Zero-Copy texture coordinate mismatches.

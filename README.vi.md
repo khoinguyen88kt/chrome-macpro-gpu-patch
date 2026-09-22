@@ -16,7 +16,13 @@
 
 ## 📖 Giới thiệu
 
-Bắt đầu từ phiên bản **Chromium 130+**, Google đã chính thức vô hiệu hóa backend ANGLE OpenGL trên macOS và ép buộc sử dụng **Metal / Skia Graphite**. Đối với các dòng Mac đời cũ chạy qua **OpenCore Legacy Patcher (OCLP)** — đặc biệt là **Mac Pro 6,1 (Trash Can 2013)** trang bị card đồ họa **Dual AMD FirePro D700 / D500 / D300 (kiến trúc GCN 1.0)** — các GPU này không hỗ trợ đầy đủ các tính năng Metal hiện đại (Metal 2.4/3, ray-tracing, texture memory mới). Hậu quả là:
+Trong khoảng từ **Chromium 129 đến 152**, Google đã từng bước chuyển macOS sang Metal và cuối cùng loại bỏ hoàn toàn backend ANGLE OpenGL:
+
+* **M129** — ANGLE/Metal trở thành backend mặc định trên mọi máy Mac (`kDefaultANGLEMetal` được bật vô điều kiện).
+* **M141** — mục `chrome://flags#use-angle` bị gỡ bỏ trên macOS ([CL 6965659](https://chromium-review.googlesource.com/c/chromium/src/+/6965659)), nên không còn có thể cố định backend từ giao diện trình duyệt.
+* **M152** — backend ANGLE CGL/GL bị loại khỏi `GetAllowedGLImplementations()` trong `ui/gl/init/gl_factory_mac.cc` ([CL 7898546](https://chromium-review.googlesource.com/c/chromium/src/+/7898546), [crbug 519633318](https://issues.chromium.org/issues/519633318)). Từ M152 trở đi, `--use-angle=gl` bị *từ chối* chứ không phải bị bỏ qua — `ui/gl/init/gl_factory.cc` ghi log `Requested GL implementation ... not found in allowed implementations` và trả về `kGLImplementationNone`, khiến quá trình khởi tạo GPU thất bại hoàn toàn. Đây chính là lý do các bản build hiện tại cần vá `GetAllowedGLImplementations` thay vì chỉ truyền cờ dòng lệnh.
+
+Lưu ý rằng trên **Chromium 130–151, cờ `--use-angle=gl` vẫn hoạt động trên macOS mà không cần vá**, điều này hữu ích khi cần xác định một bản build cụ thể có cần vá đầy đủ hay không. Đối với các dòng Mac đời cũ chạy qua **OpenCore Legacy Patcher (OCLP)** — đặc biệt là **Mac Pro 6,1 (Trash Can 2013)** trang bị card đồ họa **Dual AMD FirePro D700 / D500 / D300 (kiến trúc GCN 1.0)** — các GPU này không hỗ trợ đầy đủ các tính năng Metal hiện đại (Metal 2.4/3, ray-tracing, texture memory mới). Hậu quả là:
 
 1. **OpenGL bị tắt hoàn toàn**: Chrome rơi vào chế độ dựng hình phần mềm (Software Only), gây giật lag và CPU tăng vọt. Rê chuột vào UI hoặc tải YouTube làm crash tiến trình GPU.
 2. **Giao diện bị nát, lưới ô vuông đen (Black Grid Tiles)**: Thanh công cụ, bookmark, tab và trang web xuất hiện vô số ô vuông đen lặp lại do xung đột tọa độ texture Zero-Copy.
