@@ -104,6 +104,8 @@ python3 patch.py helium
 | Command | Description |
 | :--- | :--- |
 | `python3 patch.py vscode` | Patches Visual Studio Code using a non-invasive launcher wrapper shim (`--use-angle=gl`). |
+| `python3 patch.py vscode --update-app` | Checks Microsoft API, downloads and installs the latest stable VS Code release, and automatically reapplies the GPU patch. |
+| `./update_vscode.sh` | Convenience wrapper script executing `python3 patch.py vscode --update-app`. |
 | `python3 patch.py --check vscode` | Checks if Visual Studio Code wrapper shim is active. |
 | `python3 patch.py --restore vscode` | Restores original unpatched Visual Studio Code executable. |
 
