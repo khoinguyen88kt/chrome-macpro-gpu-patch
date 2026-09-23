@@ -69,25 +69,56 @@ keyUsage            = critical, digitalSignature
 extendedKeyUsage    = codeSigning
 EOF
 
-# Generate private key and certificate
-openssl req -new -x509 -nodes -days 3650 -config "$CONF" -keyout "$KEY" -out "$CRT" 2>/dev/null
-
-# Export PKCS12: Standard export first (macOS LibreSSL default), fallback to -legacy (OpenSSL 3.x)
-if ! openssl pkcs12 -export -out "$P12" -inkey "$KEY" -in "$CRT" -passout pass:123456 2>/dev/null; then
-    openssl pkcs12 -export -legacy -out "$P12" -inkey "$KEY" -in "$CRT" -passout pass:123456 2>/dev/null
+# Prefer macOS native /usr/bin/openssl (LibreSSL) to prevent Homebrew OpenSSL 3.x encryption mismatch
+OPENSSL_BIN="/usr/bin/openssl"
+if [ ! -x "$OPENSSL_BIN" ]; then
+    OPENSSL_BIN="openssl"
 fi
 
-# Import into Keychain
+# Generate private key and certificate
+"$OPENSSL_BIN" req -new -x509 -nodes -days 3650 -config "$CONF" -keyout "$KEY" -out "$CRT" 2>/dev/null
+
+# Export PKCS12:
+# 1. Try with explicit legacy PBE algorithms (ensures OpenSSL 3.x produces TripleDES/SHA1 compatible with Apple Keychain)
+# 2. Fallback to standard export (native macOS LibreSSL)
+# 3. Fallback to -legacy flag (OpenSSL 3.x legacy provider)
+set +e
+"$OPENSSL_BIN" pkcs12 -export -out "$P12" -inkey "$KEY" -in "$CRT" -passout pass:123456 \
+    -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg SHA1 2>/dev/null
+if [ $? -ne 0 ] || [ ! -f "$P12" ]; then
+    "$OPENSSL_BIN" pkcs12 -export -out "$P12" -inkey "$KEY" -in "$CRT" -passout pass:123456 2>/dev/null || \
+    "$OPENSSL_BIN" pkcs12 -export -legacy -out "$P12" -inkey "$KEY" -in "$CRT" -passout pass:123456 2>/dev/null
+fi
+set -e
+
+# Import into Keychain with robust fallback and set +e protection
+set +e
+IMPORT_SUCCESS=0
 if [ -n "$KEYCHAIN" ]; then
     if [ -n "$RUN_AS_USER" ]; then
-        $RUN_AS_USER security import "$P12" -k "$KEYCHAIN" -P 123456 -T /usr/bin/codesign 2>/dev/null || \
-        $RUN_AS_USER security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null
+        $RUN_AS_USER security import "$P12" -k "$KEYCHAIN" -P 123456 -T /usr/bin/codesign 2>/dev/null && IMPORT_SUCCESS=1
+        if [ $IMPORT_SUCCESS -eq 0 ]; then
+            $RUN_AS_USER security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null && IMPORT_SUCCESS=1
+        fi
     else
-        security import "$P12" -k "$KEYCHAIN" -P 123456 -T /usr/bin/codesign 2>/dev/null || \
-        security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null
+        security import "$P12" -k "$KEYCHAIN" -P 123456 -T /usr/bin/codesign 2>/dev/null && IMPORT_SUCCESS=1
+        if [ $IMPORT_SUCCESS -eq 0 ]; then
+            security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null && IMPORT_SUCCESS=1
+        fi
     fi
 else
-    security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null
+    security import "$P12" -P 123456 -T /usr/bin/codesign 2>/dev/null && IMPORT_SUCCESS=1
+fi
+set -e
+
+# Verify import
+if [ $IMPORT_SUCCESS -eq 0 ]; then
+    if security find-certificate -c "LocalCodeSigner" >/dev/null 2>&1; then
+        echo "ℹ️  'LocalCodeSigner' certificate is already present in Keychain."
+    else
+        echo "❌ Error: Failed to import certificate into Keychain. Please make sure your Keychain is unlocked."
+        exit 1
+    fi
 fi
 
 # Clean up temp files safely using python
