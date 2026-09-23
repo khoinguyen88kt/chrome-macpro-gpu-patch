@@ -224,6 +224,65 @@ static const char *kInjectedFlags[] = {
 
 ---
 
+## ⚖️ Known Tradeoffs
+
+The patch is effective, but it is not free. This section documents what it costs so you can decide knowingly.
+
+### Code signature
+
+Two different strategies are used, with different consequences.
+
+**Browsers (Chrome / Brave / Opera / Helium)** — the framework binary is modified and the bundle is re-signed with the locally generated `LocalCodeSigner` certificate (`codesign --force --deep`). This replaces the vendor's Developer ID with an identity that has no Team ID and carries no entitlements.
+
+**Electron apps (opt-in)** — the launcher wrapper never modifies or re-signs any binary. The original executable is preserved as `<name>.real` and the wrapper `exec`s it, so the **running process keeps the vendor's signature**, and Keychain ACLs and entitlements continue to be satisfied. The bundle seal is still broken (the `CFBundleExecutable` is now a shell script), so `codesign --verify` on the `.app` will fail.
+
+In both cases, Gatekeeper's integrity check is a **first-launch** gate, so an already-launched app continues to run. A **re-quarantined** copy — fresh download, AirDrop, Migration Assistant, restore from backup — may be refused. On Sequoia the Control-click bypass no longer exists; use System Settings → Privacy & Security → *Open Anyway*.
+
+### Keychain and saved passwords
+
+Re-signing a browser changes its code identity, and macOS Keychain ACLs are bound to that identity.
+
+**Most importantly: Chrome's "Safe Storage" key.** Chrome encrypts saved passwords and cookies with a key held in the login Keychain, protected by Chrome's designated requirement. After re-signing, Chrome may be unable to read it — expect a Keychain authorisation prompt on next launch, and in some cases a regenerated key, which makes previously saved passwords undecryptable.
+
+**Back up or export your saved passwords before patching a browser you rely on for credentials.**
+
+The Electron wrapper strategy does not have this problem, which is why it is used there.
+
+### TCC privacy permissions
+
+Camera, microphone and screen-recording grants are also keyed to the code signature. Re-signed browsers may need these re-approved, and previously granted permissions may silently stop applying. Relevant if you use the browser for video calls or screen sharing.
+
+### Rendering performance
+
+The launcher injects flags beyond `--use-angle=gl`, and several trade performance for stability:
+
+| Flag | Cost |
+|---|---|
+| `--disable-accelerated-video-decode` | Video decoded on CPU. On older Xeons, high-resolution playback may drop frames. |
+| `--disable-zero-copy`, `--ui-disable-zero-copy` | Extra texture copies per frame; more memory bandwidth. |
+| `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Additional copies in the compositor and video paths. |
+| `--disable-accelerated-2d-canvas` | 2D canvas rasterised on CPU. |
+| `--disable-partial-raster` | Full tile re-rasterisation instead of partial updates. |
+| `--disable-features=SkiaGraphite` | Falls back to the Ganesh raster path. |
+| `--ignore-gpu-blocklist` | Bypasses Chromium's own hardware exclusions, including any that exist for good reason. |
+
+This is the intended trade: these mitigations are what avoid the corruption and GPU hangs on GCN 1.0 hardware. It is worth knowing that the result is not equivalent to an unpatched browser on supported hardware.
+
+### Chromium version ceiling
+
+Restoring the GL backend depends on patching `GetAllowedGLImplementations()`, whose byte patterns are validated against **M152–M153**. Newer milestones may shift the compiled code; the patcher reports the detected milestone and warns when it is outside the validated range. See the Overview for the full milestone history.
+
+### Reverting
+
+Every patch is reversible:
+
+```bash
+python3 patch.py --restore all          # browsers
+python3 patch.py vscode --restore       # Electron apps (opt-in targets)
+```
+
+Browsers restore from the per-version backup; Electron apps restore by moving `<name>.real` back. If a bundle has become unlaunchable for any reason, reinstalling the application from the vendor is always a clean recovery — no system-level changes are made by this project.
+
 ## 🔄 Maintaining Patches Across Chrome Updates
 
 ### How easy is it when Chrome updates?
