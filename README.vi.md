@@ -101,9 +101,11 @@ python3 patch.py helium
 #### 💻 Ứng Dụng Electron (Chỉ Áp Dụng Khi Opt-In Thủ Công — Bỏ qua trong `all`):
 > [!NOTE]
 > Ứng dụng Electron bắt buộc **chỉ chạy khi chỉ định rõ (Opt-In)** nhằm bảo vệ chữ ký bản quyền của nhà phát triển, Team ID và phân quyền Keychain macOS (tài khoản GitHub Copilot, mật khẩu Git, SSH keys).
-| Lệnh | Mô tả chức năng |
+| Command | Mô tả chức năng |
 | :--- | :--- |
 | `python3 patch.py vscode` | Vá Visual Studio Code bằng cơ chế launcher wrapper shim an toàn (`--use-angle=gl`). |
+| `python3 patch.py vscode --update-app` | Tự động kiểm tra API Microsoft, tải và cài đặt bản VS Code mới nhất, đồng thời tự động tái lập bản vá GPU. |
+| `./update_vscode.sh` | Script tiện ích gọi nhanh `python3 patch.py vscode --update-app`. |
 | `python3 patch.py --check vscode` | Kiểm tra xem Visual Studio Code đã được cài đặt wrapper shim hay chưa. |
 | `python3 patch.py --restore vscode` | Khôi phục lại file thực thi gốc ban đầu của Visual Studio Code. |
 

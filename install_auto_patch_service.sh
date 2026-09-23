@@ -18,7 +18,7 @@ launchctl unload "$TARGET_PLIST" 2>/dev/null || true
 WATCH_PATHS_XML=$(/usr/bin/python3 -c '
 import os, sys
 sys.path.insert(0, "'"$SCRIPT_DIR"'")
-from patchers import AVAILABLE_PATCHERS
+from patchers import AVAILABLE_PATCHERS, OPT_IN_PATCHERS
 
 watch_paths = []
 for slug, cls in AVAILABLE_PATCHERS.items():
@@ -26,6 +26,13 @@ for slug, cls in AVAILABLE_PATCHERS.items():
     if p.is_installed():
         watch_paths.append(os.path.join(p.app_path, "Contents/Frameworks"))
         watch_paths.append(os.path.join(p.app_path, "Contents/MacOS"))
+
+for slug, cls in OPT_IN_PATCHERS.items():
+    p = cls(repo_root="'"$SCRIPT_DIR"'")
+    real_bin = getattr(p, "get_executable_real", lambda: "")()
+    if p.is_installed() and (os.path.exists(real_bin) or getattr(p, "is_already_patched", lambda: False)()):
+        watch_paths.append(os.path.join(p.app_path, "Contents/MacOS"))
+        watch_paths.append(os.path.join(p.app_path, "Contents/Info.plist"))
 
 for wp in watch_paths:
     print(f"        <string>{wp}</string>")

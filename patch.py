@@ -61,23 +61,26 @@ def main():
         description=f"Multi-Browser & Electron GPU Patcher for Legacy Mac GPUs (v{__version__})",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""Examples:
-  python3 patch.py              # Auto-detect and patch all installed browsers
-  python3 patch.py chrome       # Patch Google Chrome only
-  python3 patch.py brave        # Patch Brave Browser only
-  python3 patch.py opera        # Patch Opera only
-  python3 patch.py helium       # Patch Helium Browser only
-  python3 patch.py vscode       # Patch Visual Studio Code (opt-in)
-  python3 patch.py --list       # List supported browsers and opt-in apps
-  python3 patch.py --check all  # Check patch status for all browsers
-  python3 patch.py --update     # Pull latest version from GitHub
-  python3 patch.py --restore all# Restore original browser binaries
+  python3 patch.py                  # Auto-detect and patch all installed browsers
+  python3 patch.py chrome           # Patch Google Chrome only
+  python3 patch.py brave            # Patch Brave Browser only
+  python3 patch.py opera            # Patch Opera only
+  python3 patch.py helium           # Patch Helium Browser only
+  python3 patch.py vscode           # Patch Visual Studio Code (opt-in)
+  python3 patch.py vscode --update-app # Update VS Code to latest release and re-patch
+  python3 patch.py --list           # List supported browsers and opt-in apps
+  python3 patch.py --check all      # Check patch status for all browsers
+  python3 patch.py --update         # Pull latest version of this tool from GitHub
+  python3 patch.py --restore all    # Restore original browser binaries
   python3 patch.py --restore vscode # Restore original Visual Studio Code binary
 """
     )
     parser.add_argument("target", nargs="?", default="all",
                         help=f"Target to patch: browsers ({browser_keys}), opt-in apps ({opt_in_keys}), or 'all' (browsers only)")
     parser.add_argument("--version", action="version", version=f"%(prog)s v{__version__}")
-    parser.add_argument("--update", action="store_true", help="Check and update the patcher to latest version")
+    parser.add_argument("--update", action="store_true", help="Check and update the patcher tool to latest version")
+    parser.add_argument("--update-app", action="store_true",
+                        help="Download and install latest upstream release of target app (e.g. 'python3 patch.py vscode --update-app') and re-patch it")
     parser.add_argument("--app-path", type=str, default=None,
                         help="Explicit path to the .app bundle (e.g. /Applications/Visual Studio Code.app)")
     parser.add_argument("--list", action="store_true", help="List supported browsers and opt-in apps")
@@ -136,16 +139,34 @@ def main():
     targets_to_run = []
 
     if target == "all":
+        if args.update_app:
+            print("[!] Error: --update-app requires specifying a specific application target (e.g. 'python3 patch.py vscode --update-app').")
+            return 1
         installed = get_installed_patchers()
         if not installed:
             print("[!] No supported browsers found installed on this system.")
             return 1
         targets_to_run = list(installed.values())
+
+        # If in auto background watcher mode, also re-patch opted-in apps if their binary was refreshed by an update
+        if args.auto:
+            for slug, cls in OPT_IN_PATCHERS.items():
+                p = cls(repo_root=SCRIPT_DIR)
+                real_file = getattr(p, "get_executable_real", lambda: "")()
+                if p.is_installed() and (os.path.exists(real_file) or getattr(p, "is_already_patched", lambda: False)()):
+                    targets_to_run.append(p)
+
     elif target in ALL_PATCHERS:
         p = ALL_PATCHERS[target](repo_root=SCRIPT_DIR, app_path=args.app_path)
         if not p.is_installed():
             print(f"[!] {p.name} is not found at '{p.app_path}'. Use --app-path to specify its location.")
             return 1
+        if args.update_app:
+            if hasattr(p, "update_app"):
+                return p.update_app()
+            else:
+                print(f"[!] --update-app is not supported for {p.name}.")
+                return 1
         targets_to_run = [p]
     else:
         valid_targets = list(AVAILABLE_PATCHERS.keys()) + [f"{k} (opt-in)" for k in OPT_IN_PATCHERS.keys()]
