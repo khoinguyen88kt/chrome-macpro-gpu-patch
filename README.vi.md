@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Nền_tảng-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
 [![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium-orange.svg)](#)
 [![Thiết bị](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20%7C%20Mac%20đời_cũ-lightgrey.svg)](#)
-[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.3.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.3.4-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![Giấy phép](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
 
 ---
