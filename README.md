@@ -81,7 +81,7 @@ python3 patch.py helium
 ```
 *The script will automatically create safe backups, scan and patch framework binaries, compile the optimized native C launcher, and re-sign the application bundle with `LocalCodeSigner`.*
 
-#### CLI Options & Commands:
+#### 🌐 Web Browsers (Auto-detected in `all`):
 | Command | Description |
 | :--- | :--- |
 | `python3 patch.py` | Auto-detects and patches all supported browsers installed on your Mac. |
@@ -92,13 +92,26 @@ python3 patch.py helium
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
-| `python3 patch.py --update` | Updates the patcher to the latest version from GitHub. |
-| `python3 patch.py --version` | Displays current patcher version. |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
 | `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
 | `python3 patch.py --restore helium` | Restores original unpatched Helium Browser from backup. |
+
+#### 💻 Electron Apps (Opt-In Only — Skipped by `all`):
+> [!NOTE]
+> Electron apps are **strictly opt-in** to protect original developer code signatures, Team IDs, and macOS Keychain entitlements (GitHub Copilot, Git credentials, passwords).
+| Command | Description |
+| :--- | :--- |
+| `python3 patch.py vscode` | Patches Visual Studio Code using a non-invasive launcher wrapper shim (`--use-angle=gl`). |
+| `python3 patch.py --check vscode` | Checks if Visual Studio Code wrapper shim is active. |
+| `python3 patch.py --restore vscode` | Restores original unpatched Visual Studio Code executable. |
+
+#### ⚙️ Patcher Management:
+| Command | Description |
+| :--- | :--- |
+| `python3 patch.py --update` | Updates the patcher to the latest version from GitHub. |
+| `python3 patch.py --version` | Displays current patcher version. |
 
 ### 🔄 Updating the Patcher
 The patcher automatically checks for updates whenever run. To update:
