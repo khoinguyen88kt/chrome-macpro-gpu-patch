@@ -64,16 +64,25 @@ class BaseElectronPatcher(BaseBrowserPatcher):
         )
 
     def get_chromium_milestone(self):
-        """Extracts the underlying Chromium milestone from Electron Framework."""
+        """Extracts the underlying Chromium milestone from Electron Framework using chunked scanning."""
         fw_bin = self.get_framework_bin()
         if not os.path.exists(fw_bin):
             return None
         try:
+            chunk_size = 8 * 1024 * 1024
+            overlap = 64
             with open(fw_bin, "rb") as f:
-                header = f.read(120 * 1024 * 1024)
-                m = re.search(rb"Chrome/(\d+)\.", header)
-                if m:
-                    return int(m.group(1))
+                prev_tail = b""
+                # Scan up to 250MB in 8MB chunks to avoid memory pressure on fat universal binaries
+                for _ in range(32):
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    data = prev_tail + chunk
+                    m = re.search(rb"Chrome/(\d+)\.", data)
+                    if m:
+                        return int(m.group(1))
+                    prev_tail = chunk[-overlap:]
         except Exception:
             pass
         return None
@@ -84,6 +93,8 @@ class BaseElectronPatcher(BaseBrowserPatcher):
         if not os.path.exists(exe_real) or not os.path.exists(exe_bin):
             return False
         try:
+            # If exe_bin is our shell wrapper, it opens as UTF-8 text containing the marker;
+            # if unpatched, it is a Mach-O binary and will not contain the string.
             with open(exe_bin, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
                 return os.path.basename(exe_real) in content and "--use-angle=gl" in content
@@ -127,7 +138,12 @@ class BaseElectronPatcher(BaseBrowserPatcher):
         print(f"[*] Applying non-invasive launcher wrapper shim (--use-angle=gl)...")
         if milestone:
             print(f"    Detected Chromium milestone: M{milestone}")
-            if milestone < 152:
+            if milestone >= 152:
+                print(f"[!] Chromium M{milestone} removed the ANGLE GL backend on macOS (M152, CL 7898546).")
+                print("    '--use-angle=gl' would fail GPU initialization rather than be ignored. Refusing to patch.")
+                print("    A drop-in CGL-enabled ANGLE dylib replacement will be required for this build.")
+                return False
+            else:
                 print(f"    ANGLE OpenGL is natively supported in M{milestone} (< M152).")
         print(f"    Wrapper strategy preserves original code signature, Team ID,")
         print(f"    and macOS Keychain entitlements (passwords, tokens, credentials).")
