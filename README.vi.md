@@ -251,6 +251,65 @@ static const char *kInjectedFlags[] = {
 
 ---
 
+## ⚖️ Các Đánh đổi Đã biết
+
+Bản vá hoạt động hiệu quả, nhưng không phải là miễn phí. Phần này ghi lại các chi phí đi kèm để bạn có thể quyết định một cách chủ động.
+
+### Chữ ký mã (Code signature)
+
+Dự án sử dụng hai chiến lược khác nhau, với hệ quả khác nhau.
+
+**Trình duyệt (Chrome / Brave / Opera / Helium)** — binary của framework bị sửa đổi và toàn bộ bundle được ký lại bằng chứng chỉ `LocalCodeSigner` được tạo cục bộ (`codesign --force --deep`). Điều này thay thế Developer ID của nhà cung cấp bằng một danh tính không có Team ID và không mang theo entitlements.
+
+**Ứng dụng Electron (chỉ khi người dùng chủ động chọn)** — wrapper khởi chạy không sửa đổi hay ký lại bất kỳ binary nào. Tệp thực thi gốc được giữ nguyên dưới tên `<name>.real` và wrapper dùng `exec` để gọi nó, nên **tiến trình đang chạy vẫn giữ chữ ký của nhà cung cấp**, đồng thời Keychain ACL và entitlements vẫn được thỏa mãn. Tuy nhiên con dấu bundle vẫn bị phá vỡ (`CFBundleExecutable` giờ là một shell script), nên `codesign --verify` trên `.app` sẽ thất bại.
+
+Trong cả hai trường hợp, kiểm tra toàn vẹn của Gatekeeper chỉ diễn ra ở **lần khởi chạy đầu tiên**, nên ứng dụng đã từng chạy sẽ tiếp tục chạy. Một bản sao **bị cách ly lại** — tải mới, AirDrop, Migration Assistant, khôi phục từ backup — có thể bị từ chối. Trên Sequoia, thao tác Control-click để bỏ qua đã bị loại bỏ; hãy dùng System Settings → Privacy & Security → *Open Anyway*.
+
+### Keychain và mật khẩu đã lưu
+
+Việc ký lại trình duyệt làm thay đổi danh tính mã của nó, trong khi Keychain ACL của macOS lại gắn với danh tính đó.
+
+**Quan trọng nhất: khóa "Safe Storage" của Chrome.** Chrome mã hóa mật khẩu và cookie đã lưu bằng một khóa nằm trong login Keychain, được bảo vệ bởi designated requirement của Chrome. Sau khi ký lại, Chrome có thể không đọc được khóa này — hãy dự kiến một hộp thoại xin quyền Keychain ở lần khởi chạy kế tiếp, và trong một số trường hợp khóa sẽ được tạo lại, khiến các mật khẩu đã lưu trước đó không thể giải mã.
+
+**Hãy sao lưu hoặc xuất mật khẩu đã lưu trước khi vá một trình duyệt mà bạn dùng để lưu thông tin đăng nhập.**
+
+Chiến lược wrapper cho Electron không gặp vấn đề này — đó chính là lý do nó được dùng ở đó.
+
+### Quyền riêng tư TCC
+
+Các quyền camera, micro và ghi màn hình cũng gắn với chữ ký mã. Trình duyệt đã ký lại có thể cần được cấp lại các quyền này, và những quyền đã cấp trước đó có thể âm thầm không còn hiệu lực. Điều này đáng lưu ý nếu bạn dùng trình duyệt để gọi video hoặc chia sẻ màn hình.
+
+### Hiệu năng kết xuất
+
+Trình khởi chạy tiêm thêm các cờ ngoài `--use-angle=gl`, và một số cờ đánh đổi hiệu năng để lấy sự ổn định:
+
+| Cờ | Chi phí |
+|---|---|
+| `--disable-accelerated-video-decode` | Video được giải mã bằng CPU. Trên các CPU Xeon đời cũ, video độ phân giải cao có thể bị rớt khung hình. |
+| `--disable-zero-copy`, `--ui-disable-zero-copy` | Thêm các thao tác sao chép texture mỗi khung hình; tăng băng thông bộ nhớ. |
+| `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Thêm thao tác sao chép trong đường compositor và video. |
+| `--disable-accelerated-2d-canvas` | Canvas 2D được rasterize bằng CPU. |
+| `--disable-partial-raster` | Rasterize lại toàn bộ tile thay vì cập nhật từng phần. |
+| `--disable-features=SkiaGraphite` | Quay về đường raster Ganesh. |
+| `--ignore-gpu-blocklist` | Bỏ qua danh sách loại trừ phần cứng của chính Chromium, kể cả những mục tồn tại vì lý do chính đáng. |
+
+Đây là sự đánh đổi có chủ đích: chính các biện pháp này giúp tránh lỗi hiển thị và treo GPU trên phần cứng GCN 1.0. Tuy vậy, cần biết rằng kết quả không tương đương với một trình duyệt chưa vá chạy trên phần cứng được hỗ trợ.
+
+### Giới hạn phiên bản Chromium
+
+Việc khôi phục backend GL phụ thuộc vào việc vá `GetAllowedGLImplementations()`, với các mẫu byte được kiểm chứng trên **M152–M153**. Các milestone mới hơn có thể làm thay đổi mã đã biên dịch; trình vá sẽ báo milestone phát hiện được và cảnh báo khi nằm ngoài phạm vi đã kiểm chứng. Xem phần Tổng quan để biết lịch sử milestone đầy đủ.
+
+### Hoàn tác
+
+Mọi bản vá đều có thể hoàn tác:
+
+```bash
+python3 patch.py --restore all          # trình duyệt
+python3 patch.py vscode --restore       # ứng dụng Electron (mục tiêu opt-in)
+```
+
+Trình duyệt được khôi phục từ bản sao lưu theo từng phiên bản; ứng dụng Electron được khôi phục bằng cách đưa `<name>.real` về vị trí cũ. Nếu một bundle vì bất kỳ lý do gì không khởi chạy được, cài đặt lại ứng dụng từ nhà cung cấp luôn là cách khôi phục sạch sẽ — dự án này không thực hiện bất kỳ thay đổi nào ở mức hệ thống.
+
 ## 📂 Cấu Trúc Thư Mục Repository
 
 ```
