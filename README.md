@@ -326,17 +326,22 @@ Browsers restore from the per-version backup; Electron apps restore by moving `<
 chrome-macpro-gpu-patch/
 ├── patch.py                        # Unified multi-browser patcher CLI (main entrypoint)
 ├── auto_patch_chrome.py            # Backward-compatible Chrome LaunchAgent runner
-├── patchers/                       # Modular browser patchers
-│   ├── __init__.py                 # Registry of supported browsers
+├── patchers/                       # Modular browser and Electron patchers
+│   ├── __init__.py                 # Registry of supported browsers and opt-in apps
 │   ├── base.py                     # BaseBrowserPatcher engine (codesigning, backup, patching)
 │   ├── chrome.py                   # Google Chrome patcher module (7 patterns)
 │   ├── brave.py                    # Brave Browser patcher module (7 patterns)
 │   ├── opera.py                    # Opera Browser patcher module (5 patterns + dylib inject)
-│   └── helium.py                   # Helium Browser patcher module (7 patterns + GL factory bypass)
+│   ├── helium.py                   # Helium Browser patcher module (7 patterns + GL factory bypass)
+│   └── electron/                   # Modular Electron patchers
+│       ├── __init__.py
+│       ├── base.py                 # BaseElectronPatcher engine (wrapper shim, signature preserving)
+│       └── vscode.py               # Visual Studio Code patcher & automated updater
 ├── chrome_main.c                   # Google Chrome native C launcher (flag injection)
 ├── brave_main.c                    # Brave Browser native C launcher (flag injection)
 ├── opera_main.c                    # Opera Browser native C launcher (flag injection)
 ├── helium_main.c                   # Helium Browser native C launcher (flag injection)
+├── update_vscode.sh                # Visual Studio Code automated updater script
 ├── setup_certificate.sh            # Script to create and install LocalCodeSigner certificate
 ├── angle_dylibs/                   # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)
 ├── install_auto_patch_service.sh   # Background LaunchAgent service installer
@@ -345,6 +350,15 @@ chrome-macpro-gpu-patch/
 ├── .gitignore                      # Ignores build artifacts and temporary files
 └── LICENSE                         # MIT Open Source License
 ```
+
+---
+
+## 👥 Contributors & Acknowledgements
+
+A huge thank you to the community members who have contributed code, documentation, research, and testing to this project!
+
+- **[@wolffcatskyy](https://github.com/wolffcatskyy)** — Chromium milestone detection & reporting, milestone history analysis, Known Tradeoffs documentation, and architectural reviews.
+- **[@Kayn2106](https://github.com/Kayn2106)** — Helium browser support request, real-world MacBook Pro 11,4 testing, and bug verification.
 
 ---
 

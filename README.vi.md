@@ -316,17 +316,22 @@ Trình duyệt được khôi phục từ bản sao lưu theo từng phiên bả
 chrome-macpro-gpu-patch/
 ├── patch.py                        # Điểm vào chính (CLI hợp nhất vá đa trình duyệt)
 ├── auto_patch_chrome.py            # Wrapper tương thích ngược cho LaunchAgent Chrome
-├── patchers/                       # Thư mục module hóa từng trình duyệt
-│   ├── __init__.py                 # Danh bạ đăng ký các trình duyệt hỗ trợ
+├── patchers/                       # Thư mục module hóa từng trình duyệt và ứng dụng Electron
+│   ├── __init__.py                 # Danh bạ đăng ký các trình duyệt và app hỗ trợ
 │   ├── base.py                     # Engine BaseBrowserPatcher cốt lõi (ký số, backup, logic vá)
 │   ├── chrome.py                   # Module vá riêng cho Google Chrome (7 patterns)
-│   ├── brave.py                    # Module vá riêng cho Brave Browser (7 patterns)
+│   ├── brave.py                    # Brave Browser patcher module (7 patterns)
 │   ├── opera.py                    # Module vá riêng cho Opera Browser (5 patterns + dylib inject)
-│   └── helium.py                   # Module vá riêng cho Helium Browser (7 patterns + GL factory bypass)
+│   ├── helium.py                   # Module vá riêng cho Helium Browser (7 patterns + GL factory bypass)
+│   └── electron/                   # Module vá ứng dụng Electron
+│       ├── __init__.py
+│       ├── base.py                 # Engine BaseElectronPatcher cốt lõi (wrapper shim, bảo toàn chữ ký)
+│       └── vscode.py               # Module vá & tự động cập nhật Visual Studio Code
 ├── chrome_main.c                   # Bộ nạp Native C Launcher của Google Chrome
 ├── brave_main.c                    # Bộ nạp Native C Launcher của Brave Browser
 ├── opera_main.c                    # Bộ nạp Native C Launcher của Opera Browser
 ├── helium_main.c                   # Bộ nạp Native C Launcher của Helium Browser
+├── update_vscode.sh                # Script tự động cập nhật Visual Studio Code
 ├── setup_certificate.sh            # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
 ├── angle_dylibs/                   # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)
 ├── install_auto_patch_service.sh   # Cài đặt dịch vụ chạy ngầm LaunchAgent
@@ -335,6 +340,15 @@ chrome-macpro-gpu-patch/
 ├── .gitignore                      # Bỏ qua các file rác và file nhị phân tạm
 └── LICENSE                         # Giấy phép mã nguồn mở MIT
 ```
+
+---
+
+## 👥 Người Đóng Góp & Lời Cảm Ơn
+
+Xin gửi lời cảm ơn chân thành đến các thành viên cộng đồng đã đóng góp mã nguồn, tài liệu, nghiên cứu và thử nghiệm thực tế cho dự án!
+
+- **[@wolffcatskyy](https://github.com/wolffcatskyy)** — Nhận diện & báo cáo Chromium milestone, phân tích lịch sử milestone, tài liệu Các Đánh đổi Đã biết (Known Tradeoffs) và phản biện kiến trúc.
+- **[@Kayn2106](https://github.com/Kayn2106)** — Đề xuất hỗ trợ Helium Browser, thử nghiệm thực tế trên MacBook Pro 11,4 và kiểm chứng lỗi.
 
 ---
 
