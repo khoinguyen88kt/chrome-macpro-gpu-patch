@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Multi-Browser GPU Patcher for Legacy Mac GPUs (Mac Pro 6,1 / Kepler / GCN 1.0)
-Restores hardware acceleration (Compositing, WebGL, WebGPU) on modern Chromium browsers.
+Multi-Browser & Electron GPU Patcher for Legacy Mac GPUs (Mac Pro 6,1 / Kepler / GCN 1.0)
+Restores hardware acceleration (Compositing, WebGL, WebGPU) on modern Chromium browsers and Electron apps.
 """
 import os
 import sys
@@ -13,7 +13,7 @@ REPO_URL = "https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from patchers import AVAILABLE_PATCHERS
+from patchers import AVAILABLE_PATCHERS, OPT_IN_PATCHERS, ALL_PATCHERS
 
 def check_for_updates():
     """Checks GitHub for a newer version via built-in curl. Never hangs or blocks."""
@@ -45,6 +45,7 @@ def check_for_updates():
         pass
 
 def get_installed_patchers():
+    """Returns installed browsers only (default 'all' sweep). Excludes opt-in apps."""
     installed = {}
     for slug, patcher_cls in AVAILABLE_PATCHERS.items():
         p = patcher_cls(repo_root=SCRIPT_DIR)
@@ -53,31 +54,39 @@ def get_installed_patchers():
     return installed
 
 def main():
+    browser_keys = ', '.join(AVAILABLE_PATCHERS.keys())
+    opt_in_keys = ', '.join(OPT_IN_PATCHERS.keys())
+
     parser = argparse.ArgumentParser(
-        description=f"Multi-Browser GPU Patcher for Legacy Mac GPUs (v{__version__})",
+        description=f"Multi-Browser & Electron GPU Patcher for Legacy Mac GPUs (v{__version__})",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Examples:
-  python3 patch.py              # Auto-detect and patch all installed browsers
-  python3 patch.py chrome       # Patch Google Chrome only
-  python3 patch.py brave        # Patch Brave Browser only
-  python3 patch.py opera        # Patch Opera only
-  python3 patch.py helium       # Patch Helium Browser only
-  python3 patch.py --list       # List supported and detected browsers
-  python3 patch.py --check all  # Check patch status for all browsers
-  python3 patch.py --update     # Pull latest version from GitHub
-  python3 patch.py --restore all# Restore original binaries from backup
+        epilog=f"""Examples:
+  python3 patch.py                  # Auto-detect and patch all installed browsers
+  python3 patch.py chrome           # Patch Google Chrome only
+  python3 patch.py brave            # Patch Brave Browser only
+  python3 patch.py opera            # Patch Opera only
+  python3 patch.py helium           # Patch Helium Browser only
+  python3 patch.py vscode           # Patch Visual Studio Code (opt-in)
+  python3 patch.py vscode --update-app # Update VS Code to latest release and re-patch
+  python3 patch.py --list           # List supported browsers and opt-in apps
+  python3 patch.py --check all      # Check patch status for all browsers
+  python3 patch.py --update         # Pull latest version of this tool from GitHub
+  python3 patch.py --restore all    # Restore original browser binaries
+  python3 patch.py --restore vscode # Restore original Visual Studio Code binary
 """
     )
     parser.add_argument("target", nargs="?", default="all",
-                        help=f"Browser to patch: {', '.join(repr(k) for k in AVAILABLE_PATCHERS.keys())}, or 'all' (default: all installed)")
+                        help=f"Target to patch: browsers ({browser_keys}), opt-in apps ({opt_in_keys}), or 'all' (browsers only)")
     parser.add_argument("--version", action="version", version=f"%(prog)s v{__version__}")
-    parser.add_argument("--update", action="store_true", help="Check and update the patcher to latest version")
+    parser.add_argument("--update", action="store_true", help="Check and update the patcher tool to latest version")
+    parser.add_argument("--update-app", action="store_true",
+                        help="Download and install latest upstream release of target app (e.g. 'python3 patch.py vscode --update-app') and re-patch it")
     parser.add_argument("--app-path", type=str, default=None,
-                        help="Explicit path to the .app bundle (e.g. /Applications/Brave Browser.app)")
-    parser.add_argument("--list", action="store_true", help="List supported and detected browsers")
-    parser.add_argument("--check", action="store_true", help="Check if target browser(s) are already patched")
-    parser.add_argument("--restore", action="store_true", help="Restore original binaries from backup")
-    parser.add_argument("--force", action="store_true", help="Force re-applying patches even if already patched")
+                        help="Explicit path to the .app bundle (e.g. /Applications/Visual Studio Code.app)")
+    parser.add_argument("--list", action="store_true", help="List supported browsers and opt-in apps")
+    parser.add_argument("--check", action="store_true", help="Check if target is already patched")
+    parser.add_argument("--restore", action="store_true", help="Restore original binaries/executables from backup")
+    parser.add_argument("--force", action="store_true", help="Force re-applying patch even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
     parser.add_argument("--notify", action="store_true", help="Send macOS system notification on success")
 
@@ -103,37 +112,65 @@ def main():
         check_for_updates()
 
     if args.list:
-        print("Supported Browsers & Installation Paths:")
+        print("Supported Browsers (Auto-detected in 'all'):")
         for slug, cls in AVAILABLE_PATCHERS.items():
             p = cls(repo_root=SCRIPT_DIR, app_path=args.app_path if args.target == slug else None)
             installed = "INSTALLED" if p.is_installed() else "Not found"
             ver = p.get_current_version() if p.is_installed() else ""
             ver_str = f"(v{ver})" if ver else ""
             path_str = f"-> {p.app_path}" if p.is_installed() else f"(Searched: {p.app_path})"
-            print(f"  - {slug:8} : {p.name:16} [{installed:9}] {ver_str:16} {path_str}")
+            print(f"  - {slug:8} : {p.name:18} [{installed:9}] {ver_str:16} {path_str}")
+
+        print("\nOpt-In Electron Apps (Manual opt-in required, skipped by 'all'):")
+        for slug, cls in OPT_IN_PATCHERS.items():
+            p = cls(repo_root=SCRIPT_DIR, app_path=args.app_path if args.target == slug else None)
+            installed = "INSTALLED" if p.is_installed() else "Not found"
+            ver = p.get_current_version() if p.is_installed() else ""
+            ver_str = f"(v{ver})" if ver else ""
+            path_str = f"-> {p.app_path}" if p.is_installed() else f"(Searched: {p.app_path})"
+            print(f"  - {slug:8} : {p.name:18} [{installed:9}] {ver_str:16} {path_str}")
         return 0
 
     if args.app_path and args.target == "all":
-        print("[!] Error: --app-path can only be specified when targeting a specific browser (e.g. 'python3 patch.py brave --app-path ...').")
+        print("[!] Error: --app-path can only be specified when targeting a specific app (e.g. 'python3 patch.py vscode --app-path ...').")
         return 1
 
     target = args.target.lower()
     targets_to_run = []
 
     if target == "all":
+        if args.update_app:
+            print("[!] Error: --update-app requires specifying a specific application target (e.g. 'python3 patch.py vscode --update-app').")
+            return 1
         installed = get_installed_patchers()
         if not installed:
             print("[!] No supported browsers found installed on this system.")
             return 1
         targets_to_run = list(installed.values())
-    elif target in AVAILABLE_PATCHERS:
-        p = AVAILABLE_PATCHERS[target](repo_root=SCRIPT_DIR, app_path=args.app_path)
+
+        # If in auto background watcher mode, also re-patch opted-in apps if their binary was refreshed by an update
+        if args.auto:
+            for slug, cls in OPT_IN_PATCHERS.items():
+                p = cls(repo_root=SCRIPT_DIR)
+                real_file = getattr(p, "get_executable_real", lambda: "")()
+                if p.is_installed() and (os.path.exists(real_file) or getattr(p, "is_already_patched", lambda: False)()):
+                    targets_to_run.append(p)
+
+    elif target in ALL_PATCHERS:
+        p = ALL_PATCHERS[target](repo_root=SCRIPT_DIR, app_path=args.app_path)
         if not p.is_installed():
             print(f"[!] {p.name} is not found at '{p.app_path}'. Use --app-path to specify its location.")
             return 1
+        if args.update_app:
+            if hasattr(p, "update_app"):
+                return p.update_app()
+            else:
+                print(f"[!] --update-app is not supported for {p.name}.")
+                return 1
         targets_to_run = [p]
     else:
-        print(f"[!] Unknown browser target: '{target}'. Available targets: {', '.join(AVAILABLE_PATCHERS.keys())}, all")
+        valid_targets = list(AVAILABLE_PATCHERS.keys()) + [f"{k} (opt-in)" for k in OPT_IN_PATCHERS.keys()]
+        print(f"[!] Unknown target: '{target}'. Available targets: {', '.join(valid_targets)}, all")
         return 1
 
     overall_exit_code = 0

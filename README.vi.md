@@ -81,7 +81,7 @@ python3 patch.py helium
 ```
 *Script sẽ tự động tạo bản backup an toàn, quét và vá mã nhị phân Framework, biên dịch launcher C native và ký số lại toàn bộ bundle bằng `LocalCodeSigner`.*
 
-#### Các Tùy Chọn Dòng Lệnh & Lệnh Quản Trị:
+#### 🌐 Trình Duyệt Web (Tự động phát hiện trong `all`):
 | Lệnh | Mô tả chức năng |
 | :--- | :--- |
 | `python3 patch.py` | Tự động phát hiện và vá tất cả trình duyệt được hỗ trợ đã cài trên Mac. |
@@ -92,13 +92,28 @@ python3 patch.py helium
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Vá trình duyệt ở thư mục cài đặt tùy chỉnh / không chuẩn. |
 | `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
-| `python3 patch.py --update` | Tự động kéo mã nguồn mới nhất từ GitHub về và cập nhật tool. |
-| `python3 patch.py --version` | Hiển thị phiên bản hiện tại của bộ công cụ vá. |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore helium` | Khôi phục lại Helium Browser gốc ban đầu từ backup. |
+
+#### 💻 Ứng Dụng Electron (Chỉ Áp Dụng Khi Opt-In Thủ Công — Bỏ qua trong `all`):
+> [!NOTE]
+> Ứng dụng Electron bắt buộc **chỉ chạy khi chỉ định rõ (Opt-In)** nhằm bảo vệ chữ ký bản quyền của nhà phát triển, Team ID và phân quyền Keychain macOS (tài khoản GitHub Copilot, mật khẩu Git, SSH keys).
+| Command | Mô tả chức năng |
+| :--- | :--- |
+| `python3 patch.py vscode` | Vá Visual Studio Code bằng cơ chế launcher wrapper shim an toàn (`--use-angle=gl`). |
+| `python3 patch.py vscode --update-app` | Tự động kiểm tra API Microsoft, tải và cài đặt bản VS Code mới nhất, đồng thời tự động tái lập bản vá GPU. |
+| `./update_vscode.sh` | Script tiện ích gọi nhanh `python3 patch.py vscode --update-app`. |
+| `python3 patch.py --check vscode` | Kiểm tra xem Visual Studio Code đã được cài đặt wrapper shim hay chưa. |
+| `python3 patch.py --restore vscode` | Khôi phục lại file thực thi gốc ban đầu của Visual Studio Code. |
+
+#### ⚙️ Lệnh Quản Trị Patcher:
+| Lệnh | Mô tả chức năng |
+| :--- | :--- |
+| `python3 patch.py --update` | Tự động kéo mã nguồn mới nhất từ GitHub về và cập nhật tool. |
+| `python3 patch.py --version` | Hiển thị phiên bản hiện tại của bộ công cụ vá. |
 
 ### 🔄 Cập nhật phiên bản mới của Tool (Update)
 Mỗi lần chạy, script sẽ tự động kiểm tra xem trên GitHub có bản phát hành mới hơn hay không. Để cập nhật:
