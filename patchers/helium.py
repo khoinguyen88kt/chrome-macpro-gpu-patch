@@ -212,15 +212,15 @@ class HeliumPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p4_seatbelt(data: bytearray):
-            p4_re = re.compile(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(\x0f\x84.{4}|\x74.)")
+            p4_re = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)")
             m = p4_re.search(data)
             if m:
-                jump_pos = m.start() + 15
-                jump_len = len(m.group(1))
+                jump_pos = m.start() + len(m.group(1))
+                jump_len = len(m.group(2))
                 data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
-                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at 0x{m.start():x}!")
+                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at 0x{jump_pos:x}!")
                 return True
-            elif re.search(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})", data):
+            elif re.search(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", data):
                 print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
                 return True
             print("[!] Warning: Patch 4 (Seatbelt IsSandboxed) pattern not found!")
@@ -240,7 +240,7 @@ class HeliumPatcher(BaseBrowserPatcher):
                     data[m.start() : m.start() + len(m.group(0))] = replacement
                     print(f"[+] Patch 5 (IOSurface Factory Target 0x84f5) applied successfully at 0x{m.start():x}!")
                     return True
-            elif b"\x41\xb8\xf5\x84\x00\x00" in data and b"\x89\x04\x24\x66\x90" in data:
+            elif re.search(rb"\x41\xb8\xf5\x84\x00\x00.{0,30}\x89\x04\x24\x66\x90", data, re.DOTALL):
                 print("[*] Patch 5 (IOSurface Factory Target 0x84f5) is already applied.")
                 return True
             print("[!] Warning: Patch 5 (IOSurface Factory Target 0x84f5) pattern not found!")

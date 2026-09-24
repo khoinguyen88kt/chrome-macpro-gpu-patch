@@ -131,7 +131,7 @@ class ChromePatcher(BaseBrowserPatcher):
 
         def patch_p3_gpumode(data: bytearray):
             # 1. Anchored dynamic pattern (with mov rax, [rbx+...])
-            p3_anchor = re.compile(rb"\x84\xc0(?:\x0f\x84....|\x90{6})\xc7\x45(.)[\x01\x03]\x00\x00\x00\x48\x8b\x83", re.DOTALL)
+            p3_anchor = re.compile(rb"\x84\xc0\x0f\x84(....)\xc7\x45(.)\x03\x00\x00\x00\x48\x8b\x83", re.DOTALL)
             m = p3_anchor.search(data)
             if m:
                 offset_jmp = m.start() + 2
@@ -139,6 +139,10 @@ class ChromePatcher(BaseBrowserPatcher):
                 offset_val = m.start() + 11
                 data[offset_val] = 0x01
                 print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(offset_jmp)}!")
+                return True
+            p3_applied_re = re.compile(rb"\x84\xc0\x90{6}\xc7\x45.\x01\x00\x00\x00\x48\x8b\x83", re.DOTALL)
+            if p3_applied_re.search(data):
+                print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True
             # 2. Static pre-153 fallback
             p3_static = bytes.fromhex("84 c0 0f 84 8b 00 00 00 c7 45 ac 03 00 00 00 48 8b 83 38 07 00 00")
@@ -155,24 +159,27 @@ class ChromePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p4_seatbelt(data: bytearray):
-            # 1. Chromium 153+ with mov rdi, [rbx + 0x88] (any jump displacement)
-            p4_re = re.compile(rb"\x85\xc0\x0f\x84(....)\x48\x8b\xbb\x88\x00\x00\x00", re.DOTALL)
+            # 1. Chromium 153+ with mov rdi, [rbx + 0x88] in GpuMain
+            p4_re = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(\x48\x8b\xbb\x88\x00\x00\x00)", re.DOTALL)
             m = p4_re.search(data)
             if m:
-                offset = m.start() + 2
-                data[offset:offset+6] = b"\x90" * 6
-                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at {hex(offset)}!")
+                jump_pos = m.start() + len(m.group(1))
+                jump_len = len(m.group(2))
+                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
+                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at {hex(jump_pos)}!")
                 return True
-            if data.find(b"\x85\xc0\x90\x90\x90\x90\x90\x90\x48\x8b\xbb\x88\x00\x00\x00") != -1:
+            p4_applied = re.compile(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})\x48\x8b\xbb\x88\x00\x00\x00", re.DOTALL)
+            if p4_applied.search(data) or data.find(b"\x85\xc0\x90\x90\x90\x90\x90\x90\x48\x8b\xbb\x88\x00\x00\x00") != -1:
                 print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
                 return True
             # 2. Broader Seatbelt check in GpuMain (any register)
-            p4_re2 = re.compile(rb"\x85\xc0\x0f\x84(....)\x48\x8b", re.DOTALL)
+            p4_re2 = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(\x48\x8b)", re.DOTALL)
             m2 = p4_re2.search(data)
             if m2:
-                offset = m2.start() + 2
-                data[offset:offset+6] = b"\x90" * 6
-                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied dynamically at {hex(offset)}!")
+                jump_pos = m2.start() + len(m2.group(1))
+                jump_len = len(m2.group(2))
+                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
+                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied dynamically at {hex(jump_pos)}!")
                 return True
             # 3. Pre-153 Seatbelt check pattern (\xe8....\x85\xc0\x0f\x84....)
             p4_re3 = re.compile(rb"\xe8....\x85\xc0\x0f\x84(....)", re.DOTALL)
@@ -215,14 +222,16 @@ class ChromePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p6_validate_target(data: bytearray):
-            p6_re = re.compile(rb"\x55\x48\x89\xe5\x41\x56(?:.|\n){1,20}\x81\xfe\xe1\x0d\x00\x00", re.DOTALL)
+            # Dynamic pattern with push rbp; mov rbp, rsp; any callee-saved pushes; up to 50 bytes; cmp esi/ebx, 0xde1 followed by cmp ebx, 0x84f5
+            p6_re = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){1,6}(?:.|\n){1,50}\x81[\xfe\xfb]\xe1\x0d\x00\x00.{1,20}\x81[\xfe\xfb]\xf5\x84\x00\x00", re.DOTALL)
             m = p6_re.search(data)
             if m:
                 offset = m.start()
                 data[offset:offset+4] = b"\xb0\x01\xc3\x90"
                 print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(offset)}!")
                 return True
-            if data.find(b"\xb0\x01\xc3\x90\x41\x56") != -1 or data.find(b"\xb0\x01\xc3\x90\x90\x90") != -1:
+            p6_applied_re = re.compile(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){1,6}(?:.|\n){1,50}\x81[\xfe\xfb]\xe1\x0d\x00\x00.{1,20}\x81[\xfe\xfb]\xf5\x84\x00\x00", re.DOTALL)
+            if p6_applied_re.search(data):
                 print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
                 return True
             # Pre-153 static pattern

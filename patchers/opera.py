@@ -80,7 +80,7 @@ class OperaPatcher(BaseBrowserPatcher):
                 data[offset:offset+10] = b"\xe9" + struct.pack("<i", new_disp) + b"\x90" * 5
                 print(f"[+] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) applied successfully at {hex(offset)}!")
                 return True
-            if data.find(b"\x48\x89\xc1\x48\xc1\xe9\x20\xe9") != -1:
+            if re.search(rb"\x48\x89\xc1\x48\xc1\xe9\x20\xe9.{4}\x90{5}", data, re.DOTALL) or data.find(b"\x48\x89\xc1\x48\xc1\xe9\x20\xe9") != -1:
                 print("[*] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) is already applied.")
                 return True
             print("[!] Warning: Patch 1 (GetAllowedGLImplementation) pattern not found!")
@@ -95,7 +95,7 @@ class OperaPatcher(BaseBrowserPatcher):
                 data[offset:offset+6] = b"\xe9" + struct.pack("<i", disp + 1) + b"\x90"
                 print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at {hex(offset)}!")
                 return True
-            if data.find(b"\x84\xc0\xe9") != -1 and data.find(b"\x48\xb8\x09\x00\x00\x00\x03\x00") != -1:
+            if re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", data, re.DOTALL):
                 print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
                 return True
             print("[!] Warning: Patch 2 (GetDisplayInitializationParams) pattern not found!")
@@ -112,7 +112,7 @@ class OperaPatcher(BaseBrowserPatcher):
                 data[offset_val] = 0x01
                 print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(offset_jmp)}!")
                 return True
-            if data.find(b"\x84\xc0\x90\x90\x90\x90\x90\x90\xc7\x45") != -1:
+            if re.search(rb"\x84\xc0\x90{6}\xc7\x45.\x01\x00\x00\x00", data):
                 print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True
             print("[!] Warning: Patch 3 (GpuMode fallback to HARDWARE_GL) pattern not found!")
