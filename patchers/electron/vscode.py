@@ -8,6 +8,8 @@ Includes automated upstream update downloader and patcher.
 import os
 import json
 import subprocess
+import shutil
+import time
 from .base import BaseElectronPatcher
 
 class VSCodePatcher(BaseElectronPatcher):
@@ -30,8 +32,32 @@ class VSCodePatcher(BaseElectronPatcher):
             except Exception:
                 pass
 
+    def _clean_stale_node_modules(self):
+        """
+        VS Code bundles all core dependencies inside node_modules.asar.
+        If a stray physical node_modules directory exists alongside node_modules.asar,
+        Node's ESM resolver will load stale packages from the directory instead of asar,
+        causing crashes in extensionHostProcess (e.g. missing named exports in @vscode/proxy-agent).
+        """
+        app_res_dir = os.path.join(self.app_path, "Contents/Resources/app")
+        nm_dir = os.path.join(app_res_dir, "node_modules")
+        asar_path = os.path.join(app_res_dir, "node_modules.asar")
+
+        if os.path.exists(asar_path) and os.path.isdir(nm_dir):
+            bak_path = os.path.join(app_res_dir, "node_modules.bak_stale")
+            print(f"⚠️  Detected stale unbundled '{nm_dir}' alongside 'node_modules.asar'.")
+            print(f"    Moving to '{bak_path}' to avoid ESM resolution conflicts in Extension Host...")
+            try:
+                if os.path.exists(bak_path):
+                    bak_path = os.path.join(app_res_dir, f"node_modules.bak_{int(time.time())}")
+                shutil.move(nm_dir, bak_path)
+                print(f"[+] Moved stale node_modules out of the way -> {os.path.basename(bak_path)}")
+            except Exception as e:
+                print(f"[!] Warning: Could not move stale node_modules: {e}")
+
     def post_wrapper_hook(self):
         self._ensure_electron_symlink()
+        self._clean_stale_node_modules()
 
     def post_restore_hook(self):
         self._ensure_electron_symlink()

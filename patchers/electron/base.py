@@ -162,7 +162,11 @@ class BaseElectronPatcher(BaseBrowserPatcher):
             print(f"[*] Writing launcher wrapper to {os.path.basename(exe_bin)}...")
             wrapper_script = (
                 f"#!/bin/bash\n"
-                f'exec "$(dirname "$0")/{real_basename}" --use-angle=gl "$@"\n'
+                f'if [ -n "$ELECTRON_RUN_AS_NODE" ]; then\n'
+                f'    exec "$(dirname "$0")/{real_basename}" "$@"\n'
+                f'else\n'
+                f'    exec "$(dirname "$0")/{real_basename}" --use-angle=gl "$@"\n'
+                f'fi\n'
             )
             with open(exe_bin, "w", encoding="utf-8") as f:
                 f.write(wrapper_script)
