@@ -39,15 +39,18 @@ class ChromePatcher(BaseBrowserPatcher):
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if Pattern 1 (GetAllowedGLImplementation) and Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) are patched
+        # 2. Check if Pattern 1, Pattern 2, and Pattern 7 are patched
         p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
+        p2_patched = re.compile(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
         p7_patched = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45 cc 88 83 8c 01 00 00")
         try:
             with open(fw_bin, "rb") as f:
                 data = f.read()
                 if data.find(p1_patched) == -1 and not re.search(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", data, re.DOTALL):
                     return False
-                if data.find(p7_patched) == -1:
+                if not p2_patched.search(data) and not re.search(rb"\x84\xc0\xe9.{4}\x90\x83\x7d.\x00\x0f\x85", data, re.DOTALL):
+                    return False
+                if data.find(p7_patched) == -1 and not re.search(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83\x8c\x01\x00\x00", data, re.DOTALL):
                     return False
         except Exception:
             return False
@@ -108,7 +111,7 @@ class ChromePatcher(BaseBrowserPatcher):
                 data[offset:offset+6] = b"\xe9" + struct.pack("<i", disp + 1) + b"\x90"
                 print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at {hex(offset)}!")
                 return True
-            if data.find(b"\x84\xc0\xe9") != -1 and data.find(b"\x48\xb8\x09\x00\x00\x00\x03\x00") != -1:
+            if re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", data, re.DOTALL):
                 print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
                 return True
             # 2. Earlier Chromium 152 / pre-153 pattern
@@ -120,7 +123,7 @@ class ChromePatcher(BaseBrowserPatcher):
                 data[offset:offset+6] = b"\xe9" + struct.pack("<i", disp + 1) + b"\x90"
                 print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at {hex(offset)}!")
                 return True
-            if data.find(b"\x84\xc0\xe9") != -1 and data.find(b"\x83\x7d") != -1:
+            if re.search(rb"\x84\xc0\xe9.{4}\x90\x83\x7d.\x00\x0f\x85", data, re.DOTALL):
                 print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
                 return True
             print("[!] Warning: Patch 2 (GetDisplayInitializationParams) pattern not found!")
