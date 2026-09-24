@@ -87,6 +87,7 @@ class OperaPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p2_display_init(data: bytearray):
+            # 1. Chromium 136+ with mov rax, 0x300000009
             p2_re = re.compile(rb"\x84\xc0\x0f\x85(....)\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
             m = p2_re.search(data)
             if m:
@@ -96,6 +97,18 @@ class OperaPatcher(BaseBrowserPatcher):
                 print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at {hex(offset)}!")
                 return True
             if re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", data, re.DOTALL):
+                print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
+                return True
+            # 2. Earlier Chromium 135 / pre-136 pattern
+            p2_re2 = re.compile(rb"\x84\xc0\x0f\x85(....)\x83\x7d(.)\x00\x0f\x85", re.DOTALL)
+            m2 = p2_re2.search(data)
+            if m2:
+                disp = struct.unpack("<i", m2.group(1))[0]
+                offset = m2.start() + 2
+                data[offset:offset+6] = b"\xe9" + struct.pack("<i", disp + 1) + b"\x90"
+                print(f"[+] Patch 2 (GetDisplayInitializationParams - Legacy) applied successfully at {hex(offset)}!")
+                return True
+            if re.search(rb"\x84\xc0\xe9.{4}\x90\x83\x7d.\x00\x0f\x85", data, re.DOTALL):
                 print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
                 return True
             print("[!] Warning: Patch 2 (GetDisplayInitializationParams) pattern not found!")
@@ -119,15 +132,15 @@ class OperaPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p4_gldisplay(data: bytearray):
+            if data.find(b"\x84\xc0\x90\x90\x48\x89\xd8\x48\x81\xc4\x38\x01\x00\x00") != -1:
+                print("[*] Patch 4 (GLDisplayEGL Initialization) is already applied.")
+                return True
             p4_re = re.compile(rb"\x84\xc0\x74(.)\x48\x89\xd8\x48\x81\xc4\x38\x01\x00\x00", re.DOTALL)
             m = p4_re.search(data)
             if m:
                 offset = m.start() + 2
                 data[offset:offset+2] = b"\x90\x90"
                 print(f"[+] Patch 4 (GLDisplayEGL Initialization) applied successfully at {hex(offset)}!")
-                return True
-            if data.find(b"\x84\xc0\x90\x90\x48\x89\xd8\x48\x81\xc4\x38\x01\x00\x00") != -1:
-                print("[*] Patch 4 (GLDisplayEGL Initialization) is already applied.")
                 return True
             print("[!] Warning: Patch 4 (GLDisplayEGL Initialization) pattern not found!")
             return False
