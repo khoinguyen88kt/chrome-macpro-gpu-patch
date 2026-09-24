@@ -39,7 +39,7 @@ class ChromePatcher(BaseBrowserPatcher):
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if Pattern 1, Pattern 2, and Pattern 7 are patched
+        # 2. Check if Pattern 1 (GetAllowedGLImplementation), Pattern 2 (GetDisplayInitializationParams), and Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) are patched
         p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
         p2_patched = re.compile(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
         p7_patched = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45 cc 88 83 8c 01 00 00")
