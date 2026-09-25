@@ -92,6 +92,7 @@ python3 patch.py helium
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
+| `python3 patch.py --test-gpu all` | Runs a live headless WebGL probe to verify active GPU hardware acceleration. |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |

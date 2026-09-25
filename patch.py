@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 REPO_URL = "https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +70,8 @@ def main():
   python3 patch.py vscode --update-app # Update VS Code to latest release and re-patch
   python3 patch.py --list           # List supported browsers and opt-in apps
   python3 patch.py --check all      # Check patch status for all browsers
+  python3 patch.py --test-gpu all   # Probe live WebGL hardware acceleration across all browsers
+  python3 patch.py chrome --test-gpu # Test Google Chrome live GPU status only
   python3 patch.py --update         # Pull latest version of this tool from GitHub
   python3 patch.py --restore all    # Restore original browser binaries
   python3 patch.py --restore vscode # Restore original Visual Studio Code binary
@@ -84,7 +86,8 @@ def main():
     parser.add_argument("--app-path", type=str, default=None,
                         help="Explicit path to the .app bundle (e.g. /Applications/Visual Studio Code.app)")
     parser.add_argument("--list", action="store_true", help="List supported browsers and opt-in apps")
-    parser.add_argument("--check", action="store_true", help="Check if target is already patched")
+    parser.add_argument("--check", action="store_true", help="Check if target is already patched on disk")
+    parser.add_argument("--test-gpu", action="store_true", help="Run a live headless WebGL probe to verify active GPU hardware acceleration")
     parser.add_argument("--restore", action="store_true", help="Restore original binaries/executables from backup")
     parser.add_argument("--force", action="store_true", help="Force re-applying patch even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
@@ -108,7 +111,7 @@ def main():
             print(f"    {REPO_URL}/releases/latest")
         return 0
 
-    if not args.auto and not args.check:
+    if not args.auto and not args.check and not args.test_gpu:
         check_for_updates()
 
     if args.list:
@@ -180,7 +183,8 @@ def main():
             notify_user=args.notify,
             check_only=args.check,
             restore_mode=args.restore,
-            force=args.force
+            force=args.force,
+            test_gpu=args.test_gpu
         )
         if code != 0:
             overall_exit_code = code

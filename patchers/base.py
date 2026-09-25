@@ -461,7 +461,61 @@ class BaseBrowserPatcher:
             print(f"[!] Codesign verification warning: {v.stderr.strip()}")
             return False
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False):
+    def probe_gpu_status(self):
+        """Launches a fast, headless WebGL probe to query the active GPU renderer in runtime.
+        Returns:
+            tuple: (status: str, renderer: str)
+            status can be: 'HARDWARE' | 'SOFTWARE' | 'DISABLED' | 'ERROR' | 'TIMEOUT' | 'NOT_FOUND'
+        """
+        launcher_dst = self.get_launcher_dst()
+        if not os.path.exists(launcher_dst):
+            return "NOT_FOUND", f"Executable not found at {launcher_dst}"
+
+        import base64, subprocess, re
+        probe_html = (
+            "<!DOCTYPE html><html><body><div id=\"gpu_result\">WAITING</div><script>\n"
+            "try {\n"
+            "  const c = document.createElement('canvas');\n"
+            "  const gl = c.getContext('webgl') || c.getContext('experimental-webgl');\n"
+            "  if (!gl) {\n"
+            "    document.getElementById('gpu_result').innerText = 'DISABLED';\n"
+            "  } else {\n"
+            "    const ext = gl.getExtension('WEBGL_debug_renderer_info');\n"
+            "    const r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'ENABLED_NO_INFO';\n"
+            "    document.getElementById('gpu_result').innerText = r;\n"
+            "  }\n"
+            "} catch(e) {\n"
+            "  document.getElementById('gpu_result').innerText = 'ERROR:' + e.message;\n"
+            "}\n"
+            "</script></body></html>"
+        )
+        b64 = base64.b64encode(probe_html.encode("utf-8")).decode("ascii")
+        data_uri = f"data:text/html;base64,{b64}"
+
+        # Chrome, Brave, and Helium support --headless=new; Opera works best with --headless
+        flag_headless = "--headless" if self.slug == "opera" else "--headless=new"
+        cmd = [launcher_dst, flag_headless, "--dump-dom", data_uri]
+
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+            m = re.search(r"<div id=\"gpu_result\">(.*?)</div>", res.stdout)
+            if m:
+                renderer = m.group(1).strip()
+                if renderer == "DISABLED":
+                    return "DISABLED", "Hardware acceleration / WebGL is disabled by Chromium"
+                elif any(s in renderer for s in ["SwiftShader", "Software", "llvmpipe"]):
+                    return "SOFTWARE", renderer
+                elif renderer.startswith("ERROR:"):
+                    return "ERROR", renderer
+                else:
+                    return "HARDWARE", renderer
+            return "UNKNOWN", "Could not parse probe output"
+        except subprocess.TimeoutExpired:
+            return "TIMEOUT", "Process timed out during GPU probe"
+        except Exception as e:
+            return "ERROR", str(e)
+
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
@@ -479,13 +533,33 @@ class BaseBrowserPatcher:
             success = self.restore(current_ver)
             return 0 if success else 1
 
-        if check_only:
-            if self.is_already_patched(current_ver):
-                print(f"[+] {self.name} {current_ver} is ALREADY patched.")
+        if test_gpu:
+            print(f"[*] Running headless WebGL hardware acceleration probe for {self.name}...")
+            status, info = self.probe_gpu_status()
+            if status == "HARDWARE":
+                print(f"[+] GPU Status: [HARDWARE ACCELERATED]")
+                print(f"    Renderer  : {info}")
                 return 0
+            elif status == "SOFTWARE":
+                print(f"[!] GPU Status: [SOFTWARE FALLBACK] (CPU rendering)")
+                print(f"    Renderer  : {info}")
+                return 1
+            elif status == "DISABLED":
+                print(f"[-] GPU Status: [DISABLED] (Chromium context lost / disabled GPU)")
+                print(f"    Details   : {info}")
+                return 1
+            else:
+                print(f"[!] GPU Status: [{status}]")
+                print(f"    Details   : {info}")
+                return 1
+
+        if check_only:
+            is_patched = self.is_already_patched(current_ver)
+            if is_patched:
+                print(f"[+] {self.name} {current_ver} is ALREADY patched.")
             else:
                 print(f"[-] {self.name} {current_ver} is NOT patched.")
-                return 1
+            return 0 if is_patched else 1
 
         if auto:
             time.sleep(3)

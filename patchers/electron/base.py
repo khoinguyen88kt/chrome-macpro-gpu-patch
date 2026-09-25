@@ -182,7 +182,10 @@ class BaseElectronPatcher(BaseBrowserPatcher):
             print(f"[!] Failed to apply wrapper patch: {e}")
             return False
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False):
+    def probe_gpu_status(self):
+        return "UNSUPPORTED", "Headless WebGL probe is not applicable to Electron apps (verify in-app via Help > Toggle Developer Tools > Console: document.createElement('canvas').getContext('webgl'))"
+
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
@@ -199,6 +202,11 @@ class BaseElectronPatcher(BaseBrowserPatcher):
         if restore_mode:
             ok = self.restore_wrapper()
             return 0 if ok else 1
+
+        if test_gpu:
+            status, info = self.probe_gpu_status()
+            print(f"[*] {self.name}: {info}")
+            return 0
 
         if check_only:
             if self.is_already_patched(current_ver):
