@@ -222,29 +222,42 @@ class ChromePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p6_validate_target(data: bytearray):
-            # Dynamic pattern with push rbp; mov rbp, rsp; any callee-saved pushes; up to 50 bytes; cmp esi/ebx, 0xde1 followed by cmp ebx, 0x84f5
-            p6_re = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){1,6}(?:.|\n){1,50}\x81[\xfe\xfb]\xe1\x0d\x00\x00.{1,20}\x81[\xfe\xfb]\xf5\x84\x00\x00", re.DOTALL)
-            m = p6_re.search(data)
-            if m:
-                offset = m.start()
-                data[offset:offset+4] = b"\xb0\x01\xc3\x90"
-                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(offset)}!")
+            # Check already applied first (full 20-byte NOP pattern, pre-153 pattern, or anchored frame)
+            p6_153_pat = bytes.fromhex("b0 01 c3 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90")
+            p6_pre_pat = bytes.fromhex("b0 01 c3 90 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
+            if data.find(p6_153_pat) != -1 or data.find(p6_pre_pat) != -1:
+                print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
                 return True
-            p6_applied_re = re.compile(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){1,6}(?:.|\n){1,50}\x81[\xfe\xfb]\xe1\x0d\x00\x00.{1,20}\x81[\xfe\xfb]\xf5\x84\x00\x00", re.DOTALL)
+            p6_applied_re = re.compile(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", re.DOTALL)
             if p6_applied_re.search(data):
                 print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
                 return True
-            # Pre-153 static pattern
-            p6_pre_orig = bytes.fromhex("55 48 89 e5 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            p6_pre_pat = bytes.fromhex("b0 01 c3 90 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            idx = data.find(p6_pre_orig)
+
+            # 1. Chromium 153+ exact pattern (sub rsp, 0x130; cmp esi, 0xde1)
+            p6_153_orig = bytes.fromhex("55 48 89 e5 41 56 53 48 81 ec 30 01 00 00 81 fe e1 0d 00 00")
+            idx = data.find(p6_153_orig)
             if idx != -1:
-                data[idx:idx+len(p6_pre_pat)] = p6_pre_pat
+                data[idx : idx + len(p6_153_pat)] = p6_153_pat
                 print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(idx)}!")
                 return True
-            if data.find(p6_pre_pat) != -1:
-                print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
+
+            # 2. Dynamic pattern specifically anchored to ScopedEGLSurfaceIOSurface::ValidateTarget (stack frame 0x130)
+            p6_re = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){1,4}\x48\x81\xec\x30\x01\x00\x00\x81\xfe\xe1\x0d\x00\x00", re.DOTALL)
+            m = p6_re.search(data)
+            if m:
+                offset = m.start()
+                data[offset : offset + 20] = p6_153_pat
+                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied dynamically at {hex(offset)}!")
                 return True
+
+            # 3. Pre-153 static pattern
+            p6_pre_orig = bytes.fromhex("55 48 89 e5 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
+            idx = data.find(p6_pre_orig)
+            if idx != -1:
+                data[idx : idx + len(p6_pre_pat)] = p6_pre_pat
+                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(idx)}!")
+                return True
+
             print("[!] Warning: Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) pattern not found!")
             return False
 
