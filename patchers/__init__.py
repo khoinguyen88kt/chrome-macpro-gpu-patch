@@ -6,6 +6,7 @@ from .chrome import ChromePatcher
 from .opera import OperaPatcher
 from .brave import BravePatcher
 from .helium import HeliumPatcher
+from .thorium import ThoriumPatcher
 from .electron import BaseElectronPatcher, VSCodePatcher, ELECTRON_PATCHERS
 
 # Browsers supported in default / automatic 'all' sweep
@@ -14,6 +15,7 @@ AVAILABLE_PATCHERS = {
     "opera": OperaPatcher,
     "brave": BravePatcher,
     "helium": HeliumPatcher,
+    "thorium": ThoriumPatcher,
 }
 
 # Opt-in only applications (skipped by 'all')
@@ -28,6 +30,7 @@ __all__ = [
     "OperaPatcher",
     "BravePatcher",
     "HeliumPatcher",
+    "ThoriumPatcher",
     "BaseElectronPatcher",
     "VSCodePatcher",
     "AVAILABLE_PATCHERS",

@@ -1,11 +1,11 @@
 # Bản Vá Tăng Tốc Phần Cứng Chromium Cho GPU Mac Đời Cũ
-### Hỗ trợ Google Chrome, Brave, Opera & Helium Browser trên macOS Sequoia & Sonoma (OCLP)
+### Hỗ trợ Google Chrome, Brave, Opera, Helium & Thorium trên macOS Sequoia & Sonoma (OCLP)
 ### Tối ưu hóa cho Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Các dòng Mac Metal 1
 
 [![Platform](https://img.shields.io/badge/Nền_tảng-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium-orange.svg)](#)
+[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium-orange.svg)](#)
 [![Thiết bị](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20%7C%20Mac%20đời_cũ-lightgrey.svg)](#)
-[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.3.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.4.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![Giấy phép](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
 
 ---
@@ -89,6 +89,7 @@ python3 patch.py helium
 | `python3 patch.py brave` | Chỉ vá riêng Brave Browser. |
 | `python3 patch.py opera` | Chỉ vá riêng Opera Browser. |
 | `python3 patch.py helium` | Chỉ vá riêng Helium Browser. |
+| `python3 patch.py thorium` | Chỉ vá riêng Thorium Browser (yêu cầu CPU hỗ trợ AVX2). |
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Vá trình duyệt ở thư mục cài đặt tùy chỉnh / không chuẩn. |
 | `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
@@ -98,6 +99,7 @@ python3 patch.py helium
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore helium` | Khôi phục lại Helium Browser gốc ban đầu từ backup. |
+| `python3 patch.py --restore thorium` | Khôi phục lại Thorium Browser gốc ban đầu từ backup. |
 
 #### 💻 Ứng Dụng Electron (Chỉ Áp Dụng Khi Opt-In Thủ Công — Bỏ qua trong `all`):
 > [!NOTE]
@@ -324,6 +326,7 @@ chrome-macpro-gpu-patch/
 │   ├── brave.py                    # Brave Browser patcher module (7 patterns)
 │   ├── opera.py                    # Module vá riêng cho Opera Browser (5 patterns + dylib inject)
 │   ├── helium.py                   # Module vá riêng cho Helium Browser (7 patterns + GL factory bypass)
+│   ├── thorium.py                  # Module vá riêng cho Thorium Browser (GPU cũ trên CPU AVX2)
 │   └── electron/                   # Module vá ứng dụng Electron
 │       ├── __init__.py
 │       ├── base.py                 # Engine BaseElectronPatcher cốt lõi (wrapper shim, bảo toàn chữ ký)
@@ -332,6 +335,7 @@ chrome-macpro-gpu-patch/
 ├── brave_main.c                    # Bộ nạp Native C Launcher của Brave Browser
 ├── opera_main.c                    # Bộ nạp Native C Launcher của Opera Browser
 ├── helium_main.c                   # Bộ nạp Native C Launcher của Helium Browser
+├── thorium_main.c                  # Bộ nạp Native C Launcher của Thorium Browser
 ├── update_vscode.sh                # Script tự động cập nhật Visual Studio Code
 ├── setup_certificate.sh            # Script tự động tạo chứng thư số LocalCodeSigner vào Keychain
 ├── angle_dylibs/                   # Thư mục chứa dylib ANGLE sạch (libEGL.dylib, libGLESv2.dylib)

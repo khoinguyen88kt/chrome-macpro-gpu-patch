@@ -180,7 +180,7 @@ class HeliumPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p2_display_params(data: bytearray):
-            p2_re = re.compile(rb"\x84\xc0\x0f\x85(.{4})\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00")
+            p2_re = re.compile(rb"\x84\xc0\x0f\x85(.{4})\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00", re.DOTALL)
             m = p2_re.search(data)
             if m:
                 target_disp = struct.unpack("<i", m.group(1))[0]
@@ -190,14 +190,14 @@ class HeliumPatcher(BaseBrowserPatcher):
                 data[m.start()+2:m.start()+8] = patch
                 print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at 0x{m.start():x}!")
                 return True
-            elif re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00", data):
+            elif re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00", data, re.DOTALL):
                 print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
                 return True
             print("[!] Warning: Patch 2 (GetDisplayInitializationParams) pattern not found!")
             return False
 
         def patch_p3_gpu_mode(data: bytearray):
-            p3_re = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)\xc7\x45(.)\x03\x00\x00\x00\x48\x8b")
+            p3_re = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)\xc7\x45(.)\x03\x00\x00\x00\x48\x8b", re.DOTALL)
             m = p3_re.search(data)
             if m:
                 jump_len = len(m.group(1))
@@ -206,14 +206,14 @@ class HeliumPatcher(BaseBrowserPatcher):
                 data[imm_pos] = 0x01
                 print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at 0x{m.start():x}!")
                 return True
-            elif re.search(rb"\x84\xc0(?:\x90{2}|\x90{6})\xc7\x45.\x01\x00\x00\x00\x48\x8b", data):
+            elif re.search(rb"\x84\xc0(?:\x90{2}|\x90{6})\xc7\x45.\x01\x00\x00\x00\x48\x8b", data, re.DOTALL):
                 print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True
             print("[!] Warning: Patch 3 (GpuMode fallback to HARDWARE_GL) pattern not found!")
             return False
 
         def patch_p4_seatbelt(data: bytearray):
-            p4_re = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)")
+            p4_re = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", re.DOTALL)
             m = p4_re.search(data)
             if m:
                 jump_pos = m.start() + len(m.group(1))
@@ -221,7 +221,7 @@ class HeliumPatcher(BaseBrowserPatcher):
                 data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
                 print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at 0x{jump_pos:x}!")
                 return True
-            elif re.search(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", data):
+            elif re.search(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", data, re.DOTALL):
                 print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
                 return True
             print("[!] Warning: Patch 4 (Seatbelt IsSandboxed) pattern not found!")

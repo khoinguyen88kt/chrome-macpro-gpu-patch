@@ -1,11 +1,11 @@
 # Chromium Browsers Hardware Acceleration Patch for Legacy Mac GPUs
-### Supports Google Chrome, Brave, Opera & Helium Browser on macOS Sequoia & Sonoma via OCLP
+### Supports Google Chrome, Brave, Opera, Helium & Thorium on macOS Sequoia & Sonoma via OCLP
 ### Optimized for Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Legacy Metal 1 GPUs
 
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium-orange.svg)](#)
+[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium-orange.svg)](#)
 [![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20%7C%20Legacy%20Macs-lightgrey.svg)](#)
-[![Release](https://img.shields.io/badge/Release-v1.3.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Release](https://img.shields.io/badge/Release-v1.4.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 ---
@@ -89,6 +89,7 @@ python3 patch.py helium
 | `python3 patch.py brave` | Patches Brave Browser only. |
 | `python3 patch.py opera` | Patches Opera Browser only. |
 | `python3 patch.py helium` | Patches Helium Browser only. |
+| `python3 patch.py thorium` | Patches Thorium Browser only (requires AVX2 CPU). |
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
@@ -98,6 +99,7 @@ python3 patch.py helium
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
 | `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
 | `python3 patch.py --restore helium` | Restores original unpatched Helium Browser from backup. |
+| `python3 patch.py --restore thorium` | Restores original unpatched Thorium Browser from backup. |
 
 #### 💻 Electron Apps (Opt-In Only — Skipped by `all`):
 > [!NOTE]
@@ -334,6 +336,7 @@ chrome-macpro-gpu-patch/
 │   ├── brave.py                    # Brave Browser patcher module (7 patterns)
 │   ├── opera.py                    # Opera Browser patcher module (5 patterns + dylib inject)
 │   ├── helium.py                   # Helium Browser patcher module (7 patterns + GL factory bypass)
+│   ├── thorium.py                  # Thorium Browser patcher module (AVX2-capable legacy GPUs)
 │   └── electron/                   # Modular Electron patchers
 │       ├── __init__.py
 │       ├── base.py                 # BaseElectronPatcher engine (wrapper shim, signature preserving)
@@ -342,6 +345,7 @@ chrome-macpro-gpu-patch/
 ├── brave_main.c                    # Brave Browser native C launcher (flag injection)
 ├── opera_main.c                    # Opera Browser native C launcher (flag injection)
 ├── helium_main.c                   # Helium Browser native C launcher (flag injection)
+├── thorium_main.c                  # Thorium Browser native C launcher (flag injection)
 ├── update_vscode.sh                # Visual Studio Code automated updater script
 ├── setup_certificate.sh            # Script to create and install LocalCodeSigner certificate
 ├── angle_dylibs/                   # Pre-extracted clean ANGLE dylibs (libEGL.dylib, libGLESv2.dylib)

@@ -18,6 +18,8 @@ Google Chrome
 *.crt
 *.p12
 docs/images/test_capture.png
+docs/images/helium_0.18.2_verified.png
+docs/images/helium_gpu_report.png
 
 # Python
 __pycache__/
