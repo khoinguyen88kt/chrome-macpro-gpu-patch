@@ -223,7 +223,6 @@ static const char *kInjectedFlags[] = {
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
-    "--disable-gpu-compositing",
 };
 ```
 
@@ -240,9 +239,6 @@ static const char *kInjectedFlags[] = {
 * `--disable-partial-raster`:
   * **Root Cause**: Top-row compositor tiles cover both the masthead (search bar) and video thumbnails. Sub-texture updates (`glTexSubImage2D`) at 60 FPS cause texture cache and gamma/sRGB state bleeding into neighboring static UI pixels.
   * **Fix**: Forces full clean tile rasterization on damage, **eliminating search bar background flicker**.
-* `--disable-gpu-compositing`:
-  * **Root Cause**: Modern Chromium on macOS assumes Metal is the sole graphics backend and hardcodes `surface_origin = kTopLeft_GrSurfaceOrigin` for IOSurface SharedImages. Under OpenGL CGL (`--use-angle=gl`), ANGLE creates textures with `kBottomLeft_GrSurfaceOrigin`. GPU compositing maps these textures upside-down and causes stride/aspect ratio distortions in CanvasKit / Flutter Web / WebGL viewports.
-  * **Fix**: Delegates final page compositing to software while preserving full hardware-accelerated 3D WebGL/WebGPU in the GPU process, ensuring canvases render upright and undistorted.
 
 ---
 
@@ -285,7 +281,6 @@ The launcher injects flags beyond `--use-angle=gl`, and several trade performanc
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Additional copies in the compositor and video paths. |
 | `--disable-accelerated-2d-canvas` | 2D canvas rasterised on CPU. |
 | `--disable-partial-raster` | Full tile re-rasterisation instead of partial updates. |
-| `--disable-gpu-compositing` | Final composite pass performed on CPU; 3D/WebGL remains GPU-accelerated. |
 | `--disable-features=SkiaGraphite` | Falls back to the Ganesh raster path. |
 | `--ignore-gpu-blocklist` | Bypasses Chromium's own hardware exclusions, including any that exist for good reason. |
 
