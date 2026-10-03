@@ -222,6 +222,7 @@ static const char *kInjectedFlags[] = {
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
+    "--disable-gpu-compositing",
 };
 ```
 
@@ -230,6 +231,7 @@ static const char *kInjectedFlags[] = {
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`: Giải mã video AV1/VP9 ổn định trên CPU rồi đẩy trực tiếp khung hình YUV lên texture chuẩn, **chấm dứt hoàn toàn lỗi màn hình xanh video YouTube**.
 * `--disable-accelerated-2d-canvas`: Ép thẻ `<canvas>` 2D của YouTube Ambient Mode chạy trên RAM CPU Skia, **xóa sạch 100% rác bộ đệm thumbnail cũ rò rỉ sau lưng video** mà không làm ảnh hưởng đến GPU 3D/Compositor.
 * `--disable-partial-raster`: Ép buộc vẽ nguyên vẹn toàn bộ tile mỗi khi có khung hình thay đổi, **loại bỏ hoàn toàn lỗi nhấp nháy / chớp sáng nền cạnh nút Search** khi rê chuột xem preview video.
+* `--disable-gpu-compositing`: Chromium hiện đại trên macOS mặc định coi Metal là backend duy nhất nên quy ước gốc tọa độ bề mặt IOSurface là góc trên bên trái (`kTopLeft_GrSurfaceOrigin`). Khi ép sang OpenGL CGL (`--use-angle=gl`), ANGLE tạo texture với gốc dưới bên trái (`kBottomLeft_GrSurfaceOrigin`), khiến GPU compositor lật ngược khung nhìn hoặc gây biến dạng stride / tỉ lệ khung hình trên các viewport CanvasKit / Flutter Web / WebGL. Cờ này chuyển bước composite trang cuối cùng sang software trong khi vẫn giữ WebGL/WebGPU 3D tăng tốc phần cứng trên GPU, giúp canvas hiển thị đúng chiều và không bị méo.
 
 ---
 
@@ -293,6 +295,7 @@ Trình khởi chạy tiêm thêm các cờ ngoài `--use-angle=gl`, và một s�
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Thêm thao tác sao chép trong đường compositor và video. |
 | `--disable-accelerated-2d-canvas` | Canvas 2D được rasterize bằng CPU. |
 | `--disable-partial-raster` | Rasterize lại toàn bộ tile thay vì cập nhật từng phần. |
+| `--disable-gpu-compositing` | Bước composite trang cuối cùng chạy trên CPU; WebGL/3D vẫn chạy trên GPU. |
 | `--disable-features=SkiaGraphite` | Quay về đường raster Ganesh. |
 | `--ignore-gpu-blocklist` | Bỏ qua danh sách loại trừ phần cứng của chính Chromium, kể cả những mục tồn tại vì lý do chính đáng. |
 

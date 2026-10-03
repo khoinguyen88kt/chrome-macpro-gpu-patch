@@ -18,6 +18,7 @@ static const char *kInjectedFlags[] = {
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
+    "--disable-gpu-compositing",
 };
 #define NUM_INJECTED_FLAGS (sizeof(kInjectedFlags) / sizeof(kInjectedFlags[0]))
 
