@@ -1,11 +1,11 @@
 # Bản Vá Tăng Tốc Phần Cứng Chromium Cho GPU Mac Đời Cũ
-### Hỗ trợ Google Chrome, Brave, Opera, Helium & Thorium trên macOS Sequoia & Sonoma (OCLP)
+### Hỗ trợ Google Chrome, Brave, Opera, Helium, Thorium & Cốc Cốc trên macOS Sequoia & Sonoma (OCLP)
 ### Tối ưu hóa cho Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Các dòng Mac Metal 1
 
 [![Platform](https://img.shields.io/badge/Nền_tảng-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium-orange.svg)](#)
+[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium%20%7C%20Cốc_Cốc-orange.svg)](#)
 [![Thiết bị](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20%7C%20Mac%20đời_cũ-lightgrey.svg)](#)
-[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.4.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.5.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![Giấy phép](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
 
 ---

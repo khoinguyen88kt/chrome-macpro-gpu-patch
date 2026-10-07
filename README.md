@@ -1,11 +1,11 @@
 # Chromium Browsers Hardware Acceleration Patch for Legacy Mac GPUs
-### Supports Google Chrome, Brave, Opera, Helium & Thorium on macOS Sequoia & Sonoma via OCLP
+### Supports Google Chrome, Brave, Opera, Helium, Thorium & CocCoc on macOS Sequoia & Sonoma via OCLP
 ### Optimized for Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Legacy Metal 1 GPUs
 
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium-orange.svg)](#)
+[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium%20%7C%20CocCoc-orange.svg)](#)
 [![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20%7C%20Legacy%20Macs-lightgrey.svg)](#)
-[![Release](https://img.shields.io/badge/Release-v1.4.5-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Release](https://img.shields.io/badge/Release-v1.5.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 ---
