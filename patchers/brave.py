@@ -131,16 +131,18 @@ class BravePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p3_gpumode(data: bytearray):
-            p3_anchor = re.compile(rb"\x84\xc0\x0f\x84(....)\xc7\x45(.)\x03\x00\x00\x00\x48\x8b\x83", re.DOTALL)
+            # 1. Anchored dynamic pattern (supporting Chromium M153 through M155+)
+            p3_anchor = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)(.{0,16})\xc7\x45(.)\x03\x00\x00\x00\x48\x8b\x83", re.DOTALL)
             m = p3_anchor.search(data)
             if m:
-                offset_jmp = m.start() + 2
-                data[offset_jmp:offset_jmp+6] = b"\x90" * 6
-                offset_val = m.start() + 11
-                data[offset_val] = 0x01
-                print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(offset_jmp)}!")
+                jump_pos = m.start() + 2
+                jump_len = len(m.group(1))
+                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
+                val_pos = jump_pos + jump_len + len(m.group(2)) + 3
+                data[val_pos] = 0x01
+                print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(jump_pos)}!")
                 return True
-            p3_applied_re = re.compile(rb"\x84\xc0\x90{6}\xc7\x45.\x01\x00\x00\x00\x48\x8b\x83", re.DOTALL)
+            p3_applied_re = re.compile(rb"\x84\xc0(?:\x90{2}|\x90{6})(.{0,16})\xc7\x45.\x01\x00\x00\x00\x48\x8b\x83", re.DOTALL)
             if p3_applied_re.search(data):
                 print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True

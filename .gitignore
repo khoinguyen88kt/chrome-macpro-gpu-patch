@@ -24,3 +24,8 @@ docs/images/helium_gpu_report.png
 # Python
 __pycache__/
 *.pyc
+
+# Local extensions & scratch files
+extensions/
+scratch_iosurface_backing.mm
+
