@@ -66,6 +66,8 @@ def main():
   python3 patch.py brave            # Patch Brave Browser only
   python3 patch.py opera            # Patch Opera only
   python3 patch.py helium           # Patch Helium Browser only
+  python3 patch.py thorium          # Patch Thorium only
+  python3 patch.py coccoc           # Patch CocCoc only
   python3 patch.py vscode           # Patch Visual Studio Code (opt-in)
   python3 patch.py vscode --update-app # Update VS Code to latest release and re-patch
   python3 patch.py --list           # List supported browsers and opt-in apps
