@@ -197,16 +197,18 @@ class HeliumPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p3_gpu_mode(data: bytearray):
-            p3_re = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)\xc7\x45(.)\x03\x00\x00\x00\x48\x8b", re.DOTALL)
-            m = p3_re.search(data)
+            p3_anchor = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)(.{0,16})\xc7\x45(.)\x03\x00\x00\x00\x48\x8b", re.DOTALL)
+            m = p3_anchor.search(data)
             if m:
+                jump_pos = m.start() + 2
                 jump_len = len(m.group(1))
-                data[m.start()+2 : m.start()+2+jump_len] = b"\x90" * jump_len
-                imm_pos = m.start() + 2 + jump_len + 3
-                data[imm_pos] = 0x01
-                print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at 0x{m.start():x}!")
+                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
+                val_pos = jump_pos + jump_len + len(m.group(2)) + 3
+                data[val_pos] = 0x01
+                print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(jump_pos)}!")
                 return True
-            elif re.search(rb"\x84\xc0(?:\x90{2}|\x90{6})\xc7\x45.\x01\x00\x00\x00\x48\x8b", data, re.DOTALL):
+            p3_applied_re = re.compile(rb"\x84\xc0(?:\x90{2}|\x90{6})(.{0,16})\xc7\x45.\x01\x00\x00\x00\x48\x8b", re.DOTALL)
+            if p3_applied_re.search(data):
                 print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
                 return True
             print("[!] Warning: Patch 3 (GpuMode fallback to HARDWARE_GL) pattern not found!")
@@ -288,20 +290,22 @@ class HeliumPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p7_iosurface_backing(data: bytearray):
-            p7_re = re.compile(rb"(\x8b\x45(.)\x89\x83\x88\x01\x00\x00\x8b\x45(.)\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00)(\x66\xc7\x83\x94\x01\x00\x00\x00\x00|\x66\x44\x89\xb3\x94\x01\x00\x00)")
-            m = p7_re.search(data)
+            p7_orig_re = re.compile(rb"\x8b\x45(.)\x89\x83(..\x00\x00)\x8b\x45(.)\x88\x83(..\x00\x00)\x45\x31\xf6\x44\x89\xb3(..\x00\x00)(\x66\xc7\x83(..\x00\x00)\x00\x00|\x66\x44\x89\xb3(..\x00\x00))", re.DOTALL)
+            m = p7_orig_re.search(data)
             if m:
-                target_reg_offset = m.group(2)
-                format_reg_offset = m.group(3)
-                p7_patched = (
-                    b"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00" +
-                    b"\x8a\x45" + format_reg_offset +
-                    b"\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00\x66\x44\x89\xb3\x94\x01\x00\x00"
+                reg1, off1, reg2, off2, off3 = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+                off4 = m.group(7) if m.group(7) else m.group(8)
+                rep = (
+                    bytes.fromhex("c7 83") + off1 + bytes.fromhex("f5 84 00 00 8a 45") +
+                    reg2 + bytes.fromhex("88 83") + off2 +
+                    bytes.fromhex("45 31 f6 44 89 b3") + off3 +
+                    bytes.fromhex("66 44 89 b3") + off4
                 )
-                data[m.start() : m.start() + len(p7_patched)] = p7_patched
+                data[m.start():m.end()] = rep
                 print(f"[+] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) applied successfully at 0x{m.start():x}!")
                 return True
-            elif re.search(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45.\x88\x83\x8c\x01\x00\x00", data):
+            p7_applied_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00\x45\x31\xf6\x44\x89\xb3..\x00\x00\x66\x44\x89\xb3..\x00\x00", re.DOTALL)
+            if p7_applied_re.search(data):
                 print("[*] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) is already applied.")
                 return True
             print("[!] Warning: Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) pattern not found!")
