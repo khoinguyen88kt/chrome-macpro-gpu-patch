@@ -1,11 +1,11 @@
 # Bản Vá Tăng Tốc Phần Cứng Chromium Cho GPU Mac Đời Cũ
-### Hỗ trợ Google Chrome, Brave, Opera, Helium, Thorium & Cốc Cốc trên macOS Sequoia & Sonoma (OCLP)
+### Hỗ trợ Google Chrome, Brave, Opera, Vivaldi, Helium, Thorium & Cốc Cốc trên macOS Sequoia & Sonoma (OCLP)
 ### Tối ưu hóa cho Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Các dòng Mac Metal 1
 
 [![Platform](https://img.shields.io/badge/Nền_tảng-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium%20%7C%20Cốc_Cốc-orange.svg)](#)
+[![Trình duyệt](https://img.shields.io/badge/Trình_duyệt-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Vivaldi%20%7C%20Helium%20%7C%20Thorium%20%7C%20Cốc_Cốc-orange.svg)](#)
 [![Thiết bị](https://img.shields.io/badge/Thiết_bị-Mac%20Pro%206%2C1%20%7C%20Mac%20đời_cũ-lightgrey.svg)](#)
-[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.6.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Phiên bản](https://img.shields.io/badge/Phiên_bản-v1.7.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![Giấy phép](https://img.shields.io/badge/Giấy_phép-MIT-purple.svg)](LICENSE)
 
 ---
@@ -77,6 +77,7 @@ python3 patch.py
 python3 patch.py chrome
 python3 patch.py brave
 python3 patch.py opera
+python3 patch.py vivaldi
 python3 patch.py helium
 ```
 *Script sẽ tự động tạo bản backup an toàn, quét và vá mã nhị phân Framework, biên dịch launcher C native và ký số lại toàn bộ bundle bằng `LocalCodeSigner`.*
@@ -88,6 +89,7 @@ python3 patch.py helium
 | `python3 patch.py chrome` | Chỉ vá riêng Google Chrome. |
 | `python3 patch.py brave` | Chỉ vá riêng Brave Browser. |
 | `python3 patch.py opera` | Chỉ vá riêng Opera Browser. |
+| `python3 patch.py vivaldi` | Chỉ vá riêng Vivaldi Browser. |
 | `python3 patch.py helium` | Chỉ vá riêng Helium Browser. |
 | `python3 patch.py thorium` | Chỉ vá riêng Thorium Browser (yêu cầu CPU hỗ trợ AVX2). |
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Vá trình duyệt ở thư mục cài đặt tùy chỉnh / không chuẩn. |
@@ -98,6 +100,7 @@ python3 patch.py helium
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore opera` | Khôi phục lại Opera Browser gốc ban đầu từ backup. |
+| `python3 patch.py --restore vivaldi` | Khôi phục lại Vivaldi Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore helium` | Khôi phục lại Helium Browser gốc ban đầu từ backup. |
 | `python3 patch.py --restore thorium` | Khôi phục lại Thorium Browser gốc ban đầu từ backup. |
 

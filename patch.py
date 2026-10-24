@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 REPO_URL = "https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +68,7 @@ def main():
   python3 patch.py helium           # Patch Helium Browser only
   python3 patch.py thorium          # Patch Thorium only
   python3 patch.py coccoc           # Patch CocCoc only
+  python3 patch.py vivaldi          # Patch Vivaldi only
   python3 patch.py vscode           # Patch Visual Studio Code (opt-in)
   python3 patch.py vscode --update-app # Update VS Code to latest release and re-patch
   python3 patch.py --list           # List supported browsers and opt-in apps

@@ -1,11 +1,11 @@
 # Chromium Browsers Hardware Acceleration Patch for Legacy Mac GPUs
-### Supports Google Chrome, Brave, Opera, Helium, Thorium & CocCoc on macOS Sequoia & Sonoma via OCLP
+### Supports Google Chrome, Brave, Opera, Vivaldi, Helium, Thorium & CocCoc on macOS Sequoia & Sonoma via OCLP
 ### Optimized for Mac Pro 6,1 (Dual AMD FirePro D700 / D500 / D300) & Legacy Metal 1 GPUs
 
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
-[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Helium%20%7C%20Thorium%20%7C%20CocCoc-orange.svg)](#)
+[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Vivaldi%20%7C%20Helium%20%7C%20Thorium%20%7C%20CocCoc-orange.svg)](#)
 [![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20%7C%20Legacy%20Macs-lightgrey.svg)](#)
-[![Release](https://img.shields.io/badge/Release-v1.6.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Release](https://img.shields.io/badge/Release-v1.7.0-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 ---
@@ -77,6 +77,7 @@ python3 patch.py
 python3 patch.py chrome
 python3 patch.py brave
 python3 patch.py opera
+python3 patch.py vivaldi
 python3 patch.py helium
 ```
 *The script will automatically create safe backups, scan and patch framework binaries, compile the optimized native C launcher, and re-sign the application bundle with `LocalCodeSigner`.*
@@ -88,6 +89,7 @@ python3 patch.py helium
 | `python3 patch.py chrome` | Patches Google Chrome only. |
 | `python3 patch.py brave` | Patches Brave Browser only. |
 | `python3 patch.py opera` | Patches Opera Browser only. |
+| `python3 patch.py vivaldi` | Patches Vivaldi Browser only. |
 | `python3 patch.py helium` | Patches Helium Browser only. |
 | `python3 patch.py thorium` | Patches Thorium Browser only (requires AVX2 CPU). |
 | `python3 patch.py brave --app-path "/path/to/Brave.app"` | Patches a browser at a custom/non-standard location. |
@@ -98,6 +100,7 @@ python3 patch.py helium
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
 | `python3 patch.py --restore opera` | Restores original unpatched Opera from backup. |
+| `python3 patch.py --restore vivaldi` | Restores original unpatched Vivaldi Browser from backup. |
 | `python3 patch.py --restore helium` | Restores original unpatched Helium Browser from backup. |
 | `python3 patch.py --restore thorium` | Restores original unpatched Thorium Browser from backup. |
 
