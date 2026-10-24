@@ -41,7 +41,7 @@ class OperaPatcher(BaseBrowserPatcher):
             return False
 
         # 2. Check if Patch 8 (gl_target_ = 0x84f5) is present in binary
-        p8_re = re.compile(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83\x8c\x01\x00\x00")
+        p8_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00")
         try:
             with open(fw_bin, "rb") as f:
                 data = f.read()
@@ -70,6 +70,31 @@ class OperaPatcher(BaseBrowserPatcher):
 
     def get_patches(self, version):
         def patch_p1_allowed_gl(data: bytearray):
+            # 1. Exact match for je -> nop nop bypass
+            p1_exact = bytes.fromhex("84 c0 74 0f 80 7d b8 00 74 cd 48 8b 45 b0")
+            idx = data.find(p1_exact)
+            if idx != -1:
+                data[idx+2 : idx+4] = b"\x90\x90"
+                print(f"[+] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) applied successfully at {hex(idx)}!")
+                return True
+            if data.find(bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")) != -1:
+                print("[*] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) is already applied.")
+                return True
+
+            # 2. Context-anchored pattern (shr rcx, 0x20; cmp rcx, 9)
+            p1_anchor = re.compile(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0(\x74.)\x80\x7d(.)\x00", re.DOTALL)
+            m_anc = p1_anchor.search(data)
+            if m_anc:
+                sub_idx = data[m_anc.start():m_anc.end()].find(b"\x84\xc0")
+                target_offset = m_anc.start() + sub_idx + 2
+                data[target_offset : target_offset + 2] = b"\x90\x90"
+                print(f"[+] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) applied successfully at {hex(target_offset)}!")
+                return True
+            if re.search(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", data, re.DOTALL):
+                print("[*] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) is already applied.")
+                return True
+
+            # 3. Legacy jump pattern for older Opera builds
             p1_re = re.compile(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09\x0f\x84(....)", re.DOTALL)
             m = p1_re.search(data)
             if m:
@@ -205,15 +230,20 @@ class OperaPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p8_backing_target(data: bytearray):
-            p8_re = re.compile(rb"\x8b\x45(.)\x89\x83\x88\x01\x00\x00\x8b\x45(.)\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00\x66\xc7\x83\x94\x01\x00\x00\x00\x00", re.DOTALL)
-            m = p8_re.search(data)
+            p8_orig_re = re.compile(rb"\x8b\x45(.)\x89\x83(..\x00\x00)\x8b\x45(.)\x88\x83(..\x00\x00)\x45\x31\xf6\x44\x89\xb3(..\x00\x00)\x66\xc7\x83(..\x00\x00)\x00\x00", re.DOTALL)
+            m = p8_orig_re.search(data)
             if m:
-                reg2 = m.group(2)
-                rep = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45") + reg2 + bytes.fromhex("88 83 8c 01 00 00 45 31 f6 44 89 b3 90 01 00 00 66 44 89 b3 94 01 00 00")
+                reg1, off1, reg2, off2, off3, off4 = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6)
+                rep = (
+                    bytes.fromhex("c7 83") + off1 + bytes.fromhex("f5 84 00 00 8a 45") +
+                    reg2 + bytes.fromhex("88 83") + off2 +
+                    bytes.fromhex("45 31 f6 44 89 b3") + off3 +
+                    bytes.fromhex("66 44 89 b3") + off4
+                )
                 data[m.start():m.end()] = rep
                 print(f"[+] Patch 8 (IOSurfaceBacking gl_target_ = 0x84f5) applied successfully at {hex(m.start())}!")
                 return True
-            p8_applied_re = re.compile(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00\x66\x44\x89\xb3\x94\x01\x00\x00", re.DOTALL)
+            p8_applied_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00\x45\x31\xf6\x44\x89\xb3..\x00\x00\x66\x44\x89\xb3..\x00\x00", re.DOTALL)
             if p8_applied_re.search(data):
                 print("[*] Patch 8 (IOSurfaceBacking gl_target_ = 0x84f5) is already applied.")
                 return True

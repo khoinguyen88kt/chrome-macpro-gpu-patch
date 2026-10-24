@@ -504,7 +504,7 @@ class BaseBrowserPatcher:
         cmd = [launcher_dst, flag_headless, "--dump-dom", data_uri]
 
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
             m = re.search(r"<div id=\"gpu_result\">(.*?)</div>", res.stdout)
             if m:
                 renderer = m.group(1).strip()
