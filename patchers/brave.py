@@ -43,7 +43,7 @@ class BravePatcher(BaseBrowserPatcher):
         # 2. Check if Pattern 1, Pattern 2, and Pattern 7 are patched
         p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
         p2_patched = re.compile(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
-        p7_re = re.compile(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83\x8c\x01\x00\x00")
+        p7_applied = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00", re.DOTALL)
         try:
             with open(fw_bin, "rb") as f:
                 data = f.read()
@@ -51,7 +51,7 @@ class BravePatcher(BaseBrowserPatcher):
                     return False
                 if not p2_patched.search(data) and not re.search(rb"\x84\xc0\xe9.{4}\x90\x83\x7d.\x00\x0f\x85", data, re.DOTALL):
                     return False
-                if not p7_re.search(data):
+                if not p7_applied.search(data):
                     return False
         except Exception:
             return False
@@ -252,15 +252,20 @@ class BravePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p7_backing_target(data: bytearray):
-            p7_re = re.compile(rb"\x8b\x45(.)\x89\x83\x88\x01\x00\x00\x8b\x45(.)\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00\x66\xc7\x83\x94\x01\x00\x00\x00\x00", re.DOTALL)
-            m = p7_re.search(data)
+            p7_orig_re = re.compile(rb"\x8b\x45(.)\x89\x83(..\x00\x00)\x8b\x45(.)\x88\x83(..\x00\x00)\x45\x31\xf6\x44\x89\xb3(..\x00\x00)\x66\xc7\x83(..\x00\x00)\x00\x00", re.DOTALL)
+            m = p7_orig_re.search(data)
             if m:
-                reg2 = m.group(2)
-                rep = bytes.fromhex("c7 83 88 01 00 00 f5 84 00 00 8a 45") + reg2 + bytes.fromhex("88 83 8c 01 00 00 45 31 f6 44 89 b3 90 01 00 00 66 44 89 b3 94 01 00 00")
+                reg1, off1, reg2, off2, off3, off4 = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6)
+                rep = (
+                    bytes.fromhex("c7 83") + off1 + bytes.fromhex("f5 84 00 00 8a 45") +
+                    reg2 + bytes.fromhex("88 83") + off2 +
+                    bytes.fromhex("45 31 f6 44 89 b3") + off3 +
+                    bytes.fromhex("66 44 89 b3") + off4
+                )
                 data[m.start():m.end()] = rep
                 print(f"[+] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) applied successfully at {hex(m.start())}!")
                 return True
-            p7_applied_re = re.compile(rb"\xc7\x83\x88\x01\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83\x8c\x01\x00\x00\x45\x31\xf6\x44\x89\xb3\x90\x01\x00\x00\x66\x44\x89\xb3\x94\x01\x00\x00", re.DOTALL)
+            p7_applied_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00\x45\x31\xf6\x44\x89\xb3..\x00\x00\x66\x44\x89\xb3..\x00\x00", re.DOTALL)
             if p7_applied_re.search(data):
                 print("[*] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) is already applied.")
                 return True
