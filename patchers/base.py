@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import glob
 import time
+import shlex
 
 def notify(title, message):
     try:
@@ -21,8 +22,14 @@ def notify(title, message):
         pass
 
 def run(cmd):
-    print(f"[RUN] {cmd}")
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if isinstance(cmd, (list, tuple)):
+        cmd_list = [str(x) for x in cmd]
+        display_str = " ".join(shlex.quote(str(x)) for x in cmd)
+    else:
+        cmd_list = shlex.split(str(cmd))
+        display_str = str(cmd)
+    print(f"[RUN] {display_str}")
+    res = subprocess.run(cmd_list, shell=False, capture_output=True, text=True)
     if res.returncode != 0 and res.stderr:
         print(f"[ERR] {res.stderr.strip()}")
     return res
