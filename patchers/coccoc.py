@@ -36,12 +36,16 @@ class CocCocPatcher(BaseBrowserPatcher):
         if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
             return False
 
-        # 1. Check if GPU Helper is signed with LocalCodeSigner
+        # 1. Check if Launcher is compiled and signed with LocalCodeSigner
+        if not self.is_launcher_patched(launcher_dst):
+            return False
+
+        # 2. Check if GPU Helper is signed with LocalCodeSigner
         res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check binary patch marks
+        # 3. Check binary patch marks
         p1_applied = re.compile(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", re.DOTALL)
         p3_applied = re.compile(rb"(\x4c\x8d\xa3\x30\x07\x00\x00(?:.|\n){1,80}\x84\xc0\xe9.{4}\x90|\x84\xc0(?:\x90{2}|\x90{6}).{0,16}\xc7\x45.\x01\x00\x00\x00\x48\x8b\x83)", re.DOTALL)
         p7_applied = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00", re.DOTALL)

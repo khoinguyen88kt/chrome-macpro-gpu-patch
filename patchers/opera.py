@@ -35,12 +35,16 @@ class OperaPatcher(BaseBrowserPatcher):
         if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
             return False
 
-        # 1. Check if GPU Helper is signed with LocalCodeSigner
+        # 1. Check if Launcher is compiled and signed with LocalCodeSigner
+        if not self.is_launcher_patched(launcher_dst):
+            return False
+
+        # 2. Check if GPU Helper is signed with LocalCodeSigner
         res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if Patch 8 (gl_target_ = 0x84f5) is present in binary
+        # 3. Check if Patch 8 (gl_target_ = 0x84f5) is present in binary
         p8_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00")
         try:
             with open(fw_bin, "rb") as f:

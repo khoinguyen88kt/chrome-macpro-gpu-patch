@@ -185,6 +185,30 @@ class BaseBrowserPatcher:
     def get_launcher_dst(self):
         return os.path.join(self.app_path, "Contents/MacOS", self.launcher_name)
 
+    def is_launcher_patched(self, launcher_path=None):
+        """
+        Verify that the launcher is our custom compiled binary that injects --use-angle=gl
+        and is signed by our local certificate (LocalCodeSigner).
+        """
+        if not launcher_path:
+            launcher_path = self.get_launcher_dst()
+        if not os.path.exists(launcher_path):
+            return False
+
+        try:
+            with open(launcher_path, "rb") as f:
+                content = f.read()
+                if b"--use-angle=gl" not in content:
+                    return False
+        except Exception:
+            return False
+
+        res = subprocess.run(["codesign", "-dvvv", launcher_path], capture_output=True, text=True)
+        if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
+            return False
+
+        return True
+
     def get_backup_dir(self, version):
         return os.path.join(os.path.expanduser(self.backup_base_dir), version)
 

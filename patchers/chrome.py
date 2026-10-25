@@ -34,12 +34,16 @@ class ChromePatcher(BaseBrowserPatcher):
         if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
             return False
 
-        # 1. Check if GPU Helper is signed with LocalCodeSigner
+        # 1. Check if Launcher is compiled and signed with LocalCodeSigner
+        if not self.is_launcher_patched(launcher_dst):
+            return False
+
+        # 2. Check if GPU Helper is signed with LocalCodeSigner
         res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if Pattern 1 (GetAllowedGLImplementation), Pattern 2 (GetDisplayInitializationParams), and Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) are patched
+        # 3. Check if Pattern 1 (GetAllowedGLImplementation), Pattern 2 (GetDisplayInitializationParams), and Pattern 7 (IOSurfaceImageBacking texture_target 0x84f5) are patched
         p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
         p2_patched = re.compile(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
         p7_applied = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00", re.DOTALL)

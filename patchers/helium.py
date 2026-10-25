@@ -142,12 +142,16 @@ class HeliumPatcher(BaseBrowserPatcher):
         if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
             return False
 
-        # 1. Check if GPU Helper is signed with LocalCodeSigner
+        # 1. Check if Launcher is compiled and signed with LocalCodeSigner
+        if not self.is_launcher_patched(launcher_dst):
+            return False
+
+        # 2. Check if GPU Helper is signed with LocalCodeSigner
         res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 2. Check if GetAllowedGLImplementation bypass is applied
+        # 3. Check if GetAllowedGLImplementation bypass is applied
         try:
             with open(fw_bin, "rb") as f:
                 data = f.read()

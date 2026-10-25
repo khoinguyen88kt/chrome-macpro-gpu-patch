@@ -38,6 +38,31 @@ for wp in watch_paths:
     print(f"        <string>{wp}</string>")
 ')
 
+RUNNER_DIR="$HOME/.local/bin"
+mkdir -p "$RUNNER_DIR"
+RUNNER_SCRIPT="$RUNNER_DIR/chrome-macpro-gpu-patch-runner.sh"
+
+cat << EOF_RUNNER > "$RUNNER_SCRIPT"
+#!/usr/bin/env bash
+# Runner wrapper that waits for target script / volume mount if necessary
+SCRIPT_TARGET="$SCRIPT_DIR/patch.py"
+MAX_WAIT=30
+WAITED=0
+
+while [ ! -f "\$SCRIPT_TARGET" ] && [ \$WAITED -lt \$MAX_WAIT ]; do
+    sleep 1
+    WAITED=\$((WAITED + 1))
+done
+
+if [ -f "\$SCRIPT_TARGET" ]; then
+    exec /usr/bin/python3 "\$SCRIPT_TARGET" "\$@"
+else
+    echo "[!] Error: \$SCRIPT_TARGET not found after \${MAX_WAIT}s" >&2
+    exit 1
+fi
+EOF_RUNNER
+chmod +x "$RUNNER_SCRIPT"
+
 cat << EOF > "$TARGET_PLIST"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -47,8 +72,7 @@ cat << EOF > "$TARGET_PLIST"
     <string>io.github.chrome-macpro-gpu-patch</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
-        <string>$SCRIPT_DIR/patch.py</string>
+        <string>$RUNNER_SCRIPT</string>
         <string>all</string>
         <string>--auto</string>
         <string>--notify</string>
