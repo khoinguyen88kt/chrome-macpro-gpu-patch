@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 REPO_URL = "https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -53,6 +53,47 @@ def get_installed_patchers():
             installed[slug] = p
     return installed
 
+def check_and_prompt_launchagent(auto_yes=False):
+    """
+    Checks if the background auto-patch LaunchAgent service is installed.
+    If not, prompts the user interactively (or automatically if auto_yes is True)
+    to confirm before installing.
+    """
+    plist_path = os.path.expanduser("~/Library/LaunchAgents/io.github.chrome-macpro-gpu-patch.plist")
+    if os.path.exists(plist_path):
+        return
+
+    if not auto_yes and not sys.stdin.isatty():
+        return
+
+    print("\n" + "=" * 60)
+    print(" 🚀 [RECOMMENDED] Enable Automatic Background Patching")
+    print("=" * 60)
+    print("Browsers frequently update and revert to unpatched stock binaries.")
+    print("You can enable a zero-resource macOS LaunchAgent service to monitor")
+    print("browser updates and re-patch them automatically in the background.")
+    print("=" * 60)
+
+    install = auto_yes
+    if not install:
+        try:
+            choice = input("Would you like to install the background auto-patch service now? [Y/n]: ").strip().lower()
+            if choice in ("", "y", "yes"):
+                install = True
+            else:
+                print("[-] Skipped. You can install it anytime with: bash install_auto_patch_service.sh")
+        except (KeyboardInterrupt, EOFError):
+            print("\n[-] Skipped.")
+            return
+
+    if install:
+        install_script = os.path.join(SCRIPT_DIR, "install_auto_patch_service.sh")
+        if os.path.exists(install_script):
+            import subprocess
+            subprocess.run(["bash", install_script])
+        else:
+            print(f"[!] Warning: Install script not found at {install_script}")
+
 def main():
     browser_keys = ', '.join(AVAILABLE_PATCHERS.keys())
     opt_in_keys = ', '.join(OPT_IN_PATCHERS.keys())
@@ -95,6 +136,7 @@ def main():
     parser.add_argument("--force", action="store_true", help="Force re-applying patch even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
     parser.add_argument("--notify", action="store_true", help="Send macOS system notification on success")
+    parser.add_argument("-y", "--yes", action="store_true", help="Automatically accept confirmation prompts (e.g. background service install)")
 
     args = parser.parse_args()
 
@@ -191,6 +233,9 @@ def main():
         )
         if code != 0:
             overall_exit_code = code
+
+    if overall_exit_code == 0 and not args.check and not args.test_gpu and not args.restore and not args.auto:
+        check_and_prompt_launchagent(auto_yes=args.yes)
 
     return overall_exit_code
 

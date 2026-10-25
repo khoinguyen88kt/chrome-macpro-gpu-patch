@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Sequoia%20%7C%20Sonoma%20(OCLP)-blue.svg)](#)
 [![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Brave%20%7C%20Opera%20%7C%20Vivaldi%20%7C%20Helium%20%7C%20Thorium%20%7C%20CocCoc-orange.svg)](#)
 [![Hardware](https://img.shields.io/badge/Hardware-Mac%20Pro%206%2C1%20%7C%20Legacy%20Macs-lightgrey.svg)](#)
-[![Release](https://img.shields.io/badge/Release-v1.7.1-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
+[![Release](https://img.shields.io/badge/Release-v1.7.2-brightgreen.svg)](https://github.com/khoinguyen88kt/chrome-macpro-gpu-patch/releases)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 ---
@@ -146,8 +146,8 @@ The patcher automatically checks for updates whenever run. To update:
    * **WebGPU**: Hardware accelerated
    * **GPU Process Crash Count**: **0**
 
-### Step 5: (Recommended) Enable Seamless Auto-Patching on Chrome Updates
-Install the background **macOS LaunchAgent** service. Whenever Google Chrome updates in the background, `launchd` kernel file watchers detect the new version, automatically apply the patch, compile the launcher, and re-sign the app **before you click "Relaunch"**:
+### Step 5: (Recommended) Enable Seamless Auto-Patching on Browser Updates
+Install the background **macOS LaunchAgent** service. Whenever any browser updates in the background, `launchd` kernel file watchers detect the new version, automatically apply the patch, compile the launcher, and re-sign the app **before you click "Relaunch"** *(Note: `python3 patch.py` will also ask to install this service for you automatically)*:
 ```bash
 bash install_auto_patch_service.sh
 ```
