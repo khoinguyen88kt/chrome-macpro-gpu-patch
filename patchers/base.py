@@ -492,6 +492,132 @@ class BaseBrowserPatcher:
             print(f"[!] Codesign verification warning: {v.stderr.strip()}")
             return False
 
+    def grant_privacy_permissions(self):
+        """
+        Injects Camera and Microphone authorization into macOS TCC database.
+        
+        Because the application is re-signed with a local certificate (LocalCodeSigner),
+        macOS invalidates previous vendor permissions and silently suppresses interactive
+        camera/microphone prompts ('Policy disallows prompt').
+        This method dynamically extracts the application's designated requirement, compiles
+        the binary csreq structure, and inserts/updates authorization records in:
+        ~/Library/Application Support/com.apple.TCC/TCC.db
+        """
+        bundle_id = self.bundle_id
+        if not bundle_id and os.path.exists(self.app_path):
+            info_plist = os.path.join(self.app_path, "Contents/Info.plist")
+            if os.path.exists(info_plist):
+                try:
+                    import plistlib
+                    with open(info_plist, "rb") as f:
+                        plist = plistlib.load(f)
+                    bundle_id = plist.get("CFBundleIdentifier", "")
+                except Exception:
+                    pass
+
+        if not bundle_id:
+            print(f"[*] Skipping privacy permissions: bundle_id not set for {self.name}.")
+            return False
+
+        if not os.path.exists(self.app_path):
+            print(f"[!] Cannot grant permissions: {self.app_path} does not exist.")
+            return False
+
+        print(f"[*] Configuring macOS privacy permissions (Camera & Microphone) for {self.name}...")
+
+        # 1. Extract designated requirement from codesign
+        res = subprocess.run(["codesign", "-d", "-r-", self.app_path], capture_output=True, text=True)
+        req_str = ""
+        for line in (res.stdout + "\n" + res.stderr).splitlines():
+            if "designated =>" in line:
+                req_str = line.split("designated =>", 1)[1].strip()
+                break
+
+        if not req_str:
+            print(f"[!] Warning: Could not extract designated code requirement from {self.app_path}.")
+            return False
+
+        # 2. Compile requirement into binary csreq format using csreq tool
+        import tempfile
+        csreq_blob = None
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as tmp:
+                tmp_path = tmp.name
+            p = subprocess.run(
+                ["csreq", "-r-", "-b", tmp_path],
+                input=req_str.encode("utf-8"),
+                capture_output=True
+            )
+            if p.returncode == 0 and os.path.exists(tmp_path):
+                with open(tmp_path, "rb") as f:
+                    csreq_blob = f.read()
+            else:
+                err_msg = p.stderr.decode("utf-8", errors="ignore").strip() if p.stderr else "csreq failed"
+                print(f"[!] Warning: csreq compilation failed: {err_msg}")
+        except Exception as e:
+            print(f"[!] Warning: Failed to run csreq compiler: {e}")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+        if not csreq_blob:
+            print(f"[!] Warning: Could not compile binary code requirement for {bundle_id}.")
+            return False
+
+        # 3. Update the user TCC database
+        import sqlite3
+        tcc_db_dir = os.path.expanduser("~/Library/Application Support/com.apple.TCC")
+        tcc_db = os.path.join(tcc_db_dir, "TCC.db")
+
+        if not os.path.exists(tcc_db):
+            print(f"[!] User TCC database not found at {tcc_db}.")
+            return False
+
+        services = [
+            ("kTCCServiceCamera", "Camera"),
+            ("kTCCServiceMicrophone", "Microphone")
+        ]
+
+        try:
+            conn = sqlite3.connect(tcc_db)
+            cur = conn.cursor()
+            for service_id, label in services:
+                cur.execute("""
+                    INSERT OR REPLACE INTO access (
+                        service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier
+                    ) VALUES (?, ?, 0, 2, 4, 1, ?, 'UNUSED')
+                """, (service_id, bundle_id, sqlite3.Binary(csreq_blob)))
+            conn.commit()
+            conn.close()
+            print(f"[+] Successfully granted Camera & Microphone permissions for {self.name} ({bundle_id}).")
+        except Exception as e:
+            print(f"[!] Warning: Failed to update TCC database: {e}")
+            print("    (If macOS blocked access, grant Terminal Full Disk Access in System Settings > Privacy & Security).")
+            return False
+
+        # 4. Refresh macOS privacy daemon (tccd)
+        try:
+            uid = os.getuid()
+            subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/com.apple.tccd"], capture_output=True)
+            print(f"[+] macOS privacy daemon (tccd) refreshed.")
+        except Exception as e:
+            print(f"[*] Note: Could not kickstart tccd: {e}")
+
+        # 5. Check if application is currently running
+        try:
+            if self.launcher_name:
+                res = subprocess.run(["pgrep", "-x", self.launcher_name], capture_output=True, text=True)
+                if res.returncode == 0:
+                    print(f"[*] Note: {self.name} is currently running. Please restart it (Cmd+Q) for permissions to take effect.")
+        except Exception:
+            pass
+
+        return True
+
     def probe_gpu_status(self):
         """Launches a fast, headless WebGL probe to query the active GPU renderer in runtime.
         Returns:
@@ -546,10 +672,18 @@ class BaseBrowserPatcher:
         except Exception as e:
             return "ERROR", str(e)
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False):
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False, fix_permissions=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
+
+        if fix_permissions:
+            print(f"\n{'='*60}")
+            print(f" [{self.name}] Target: {self.app_path}")
+            print(f" Action: Inject macOS Privacy Permissions (Camera & Mic)")
+            print(f"{'='*60}")
+            ok = self.grant_privacy_permissions()
+            return 0 if ok else 1
 
         current_ver = self.get_current_version()
         if not current_ver:
@@ -631,7 +765,12 @@ class BaseBrowserPatcher:
         self.codesign(current_ver)
 
         # 7. Verification
-        if self.verify_signature():
+        sig_ok = self.verify_signature()
+
+        # 8. Post-patch permissions injection (Camera & Microphone)
+        self.grant_privacy_permissions()
+
+        if sig_ok:
             if notify_user or auto:
                 notify(f"{self.name} GPU Patch", f"{self.name} {current_ver} has been patched successfully for your AMD GPU!")
             return 0

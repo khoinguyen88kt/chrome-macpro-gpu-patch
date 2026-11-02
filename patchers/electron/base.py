@@ -185,10 +185,19 @@ class BaseElectronPatcher(BaseBrowserPatcher):
     def probe_gpu_status(self):
         return "UNSUPPORTED", "Headless WebGL probe is not applicable to Electron apps (verify in-app via Help > Toggle Developer Tools > Console: document.createElement('canvas').getContext('webgl'))"
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False):
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False, fix_permissions=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
+
+        if fix_permissions:
+            print(f"\n{'='*60}")
+            print(f" [{self.name}] Target: {self.app_path}")
+            print(f" Action: Privacy Permissions Check")
+            print(f"{'='*60}")
+            print(f"[*] Camera & Microphone injection is not required for {self.name}.")
+            print(f"    (Uses non-invasive wrapper shim preserving original Apple Developer ID & Team ID).")
+            return 0
 
         current_ver = self.get_current_version()
         milestone = self.get_chromium_milestone()
