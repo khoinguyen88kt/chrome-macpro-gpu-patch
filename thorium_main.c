@@ -9,11 +9,12 @@
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
     "--disable-gpu-memory-buffer-video-frames",
+    "--disable-video-capture-use-gpu-memory-buffer",
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
