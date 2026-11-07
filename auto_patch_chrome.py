@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (checks and patches only if needed)")
     parser.add_argument("--notify", action="store_true", help="Send macOS notification on completion")
     parser.add_argument("--restore", action="store_true", help="Restore original unpatched Chrome Framework from backup")
+    parser.add_argument("--fix-permissions", action="store_true", help="Inject/update Camera and Microphone privacy permissions in macOS TCC database")
     args = parser.parse_args()
 
     patcher = ChromePatcher(repo_root=SCRIPT_DIR)
@@ -25,7 +26,8 @@ def main():
         auto=args.auto,
         notify_user=args.notify,
         check_only=args.check,
-        restore_mode=args.restore
+        restore_mode=args.restore,
+        fix_permissions=args.fix_permissions
     )
 
 if __name__ == "__main__":
