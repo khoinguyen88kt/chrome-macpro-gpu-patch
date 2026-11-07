@@ -96,8 +96,8 @@ python3 patch.py helium
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
 | `python3 patch.py --test-gpu all` | Runs a live headless WebGL probe to verify active GPU hardware acceleration. |
-| `python3 patch.py --fix-permissions` | Injects/updates Camera & Microphone privacy permissions for all installed browsers in macOS TCC database. |
-| `python3 patch.py chrome --fix-permissions` | Injects/updates Camera & Microphone privacy permissions for Google Chrome only. |
+| `python3 patch.py --fix-permissions` | Opt-in: prompts and injects Camera & Microphone permissions for all installed browsers in macOS TCC database (creates safety backup). |
+| `python3 patch.py chrome --fix-permissions` | Opt-in: prompts and injects Camera & Microphone permissions for Google Chrome only (creates safety backup). |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
@@ -283,19 +283,19 @@ The Electron wrapper strategy does not have this problem, which is why it is use
 
 Camera, microphone, and screen-recording authorizations are bound to an application's cryptographic code signature. When a browser is re-signed with `LocalCodeSigner`, macOS invalidates previous permissions tied to the vendor's Developer ID. On modern macOS (Sequoia, Sonoma, Ventura), macOS may silently suppress interactive camera/microphone permission prompts for locally signed binaries (`Policy disallows prompt`).
 
-**Automatic Resolution:**
-The patcher automatically resolves this as a post-patch step:
-1. It dynamically compiles the designated code requirement for the re-signed bundle.
-2. It injects active authorization entries (`kTCCServiceCamera` and `kTCCServiceMicrophone`) into your user-level privacy database (`~/Library/Application Support/com.apple.TCC/TCC.db`).
-3. It refreshes the macOS privacy daemon (`tccd`) so camera and microphone work immediately without requiring `sudo` or manual database edits.
-
 *Note for Screen Recording:* Screen recording permissions (`kTCCServiceScreenCapture`) use macOS's native `ScreenCaptureKit` picker, which will prompt normally on first use and can be approved directly in macOS System Settings.
 
-If you ever need to manually re-inject or refresh permissions for an already patched browser, run:
+**Opt-In Permission Tool (`--fix-permissions`):**
+To safely restore Camera and Microphone access without modifying system files during regular patching, an opt-in helper is provided:
 ```bash
-python3 patch.py chrome --fix-permissions   # For Chrome
+python3 patch.py chrome --fix-permissions   # For Google Chrome
 python3 patch.py --fix-permissions          # For all installed browsers
 ```
+When executed:
+1. It displays a notice and asks for explicit user confirmation (`[y/N]`, or `-y` / `--yes` for non-interactive automation).
+2. It automatically creates a safety backup of your TCC database (`~/Library/Application Support/com.apple.TCC/TCC.db.bak_<timestamp>`).
+3. It dynamically extracts and compiles the designated requirement for the signed browser and grants `kTCCServiceCamera` and `kTCCServiceMicrophone` in the user's database without requiring `sudo`.
+4. It refreshes the user `tccd` privacy daemon so changes take effect immediately.
 
 ### Rendering performance
 
