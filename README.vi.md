@@ -96,6 +96,8 @@ python3 patch.py helium
 | `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
 | `python3 patch.py --test-gpu all` | Chạy probe WebGL headless kiểm tra khả năng tăng tốc phần cứng GPU thực tế lúc chạy. |
+| `python3 patch.py --fix-permissions` | Bơm / cập nhật quyền riêng tư Camera & Microphone cho mọi trình duyệt đã cài đặt vào cơ sở dữ liệu TCC của macOS. |
+| `python3 patch.py chrome --fix-permissions` | Bơm / cập nhật quyền riêng tư Camera & Microphone chỉ riêng cho Google Chrome. |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
@@ -283,7 +285,21 @@ Chiến lược wrapper cho Electron không gặp vấn đề này — đó chí
 
 ### Quyền riêng tư TCC
 
-Các quyền camera, micro và ghi màn hình cũng gắn với chữ ký mã. Trình duyệt đã ký lại có thể cần được cấp lại các quyền này, và những quyền đã cấp trước đó có thể âm thầm không còn hiệu lực. Điều này đáng lưu ý nếu bạn dùng trình duyệt để gọi video hoặc chia sẻ màn hình.
+Các quyền truy cập Camera, Microphone và Ghi màn hình được gắn chặt với chữ ký mã (cryptographic code signature) của ứng dụng. Khi trình duyệt được ký lại với `LocalCodeSigner`, macOS sẽ vô hiệu hóa các quyền cấp trước đó vốn gắn liền với Developer ID ban đầu của nhà phát triển. Trên các phiên bản macOS hiện đại (Sequoia, Sonoma, Ventura), macOS có thể âm thầm chặn (suppress) các hộp thoại hỏi cấp quyền Camera/Microphone đối với các file nhị phân tự ký cục bộ (`Policy disallows prompt`).
+
+**Cơ chế tự động xử lý:**
+Trình vá sẽ tự động giải quyết triệt để vấn đề này ngay sau bước vá (post-patch):
+1. Tự động biên dịch mã yêu cầu (designated code requirement) cho ứng dụng đã được ký lại.
+2. Bơm trực tiếp các mục cấp quyền đang hoạt động (`kTCCServiceCamera` và `kTCCServiceMicrophone`) vào cơ sở dữ liệu quyền riêng tư cấp người dùng (`~/Library/Application Support/com.apple.TCC/TCC.db`).
+3. Khởi động lại daemon quản lý quyền của macOS (`tccd`) để Camera và Microphone hoạt động ngay lập tức mà không yêu cầu quyền `sudo` hay chỉnh sửa database thủ công.
+
+*Lưu ý đối với quyền Ghi màn hình:* Quyền ghi màn hình (`kTCCServiceScreenCapture`) sử dụng bộ chọn giao diện gốc `ScreenCaptureKit` của macOS, sẽ hiển thị hộp thoại xin cấp quyền bình thường ở lần sử dụng đầu tiên và có thể phê duyệt trực tiếp trong Cài đặt hệ thống (System Settings).
+
+Nếu bạn cần cấp lại hoặc làm mới quyền riêng tư thủ công cho trình duyệt đã vá, hãy chạy:
+```bash
+python3 patch.py chrome --fix-permissions   # Dành cho riêng Chrome
+python3 patch.py --fix-permissions          # Dành cho tất cả trình duyệt đã cài đặt
+```
 
 ### Hiệu năng kết xuất
 
