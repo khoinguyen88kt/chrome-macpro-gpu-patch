@@ -218,11 +218,12 @@ Rather than using a fragile shell script wrapper, the main executable `/Applicat
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
     "--disable-gpu-memory-buffer-video-frames",
+    "--disable-video-capture-use-gpu-memory-buffer",
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
@@ -236,6 +237,12 @@ static const char *kInjectedFlags[] = {
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`:
   * **Root Cause**: Decoded YUV video frames wrapped in multi-plane IOSurfaces fail shader mapping on Apple CGL ($U=0, V=0 \to$ solid green).
   * **Fix**: Performs clean software decode (dav1d/libgav1) and transfers standard YUV textures directly to the GPU, **fixing green screen playback**.
+* `--disable-video-capture-use-gpu-memory-buffer`:
+  * **Root Cause**: AVFoundation video capture (`VideoCaptureDeviceAVFoundation`) exports camera frames as bi-planar NV12 `IOSurface` objects. When attached to `<video>` preview elements in the browser, sampling multi-plane NV12 `IOSurface` textures fails shader mapping under ANGLE OpenGL CGL ($U=0, V=0$), producing green graphics artifacting and corrupted video in webcam previews (e.g. `webcamtests.com`, Google Meet, Zoom).
+  * **Fix**: Disables GPU memory buffers in the video capture pipeline, routing frames through CPU memory planes (`processPixelBufferPlanes`) which upload clean standard `GL_TEXTURE_2D` textures with normalized $[0.0, 1.0]$ coordinates, **completely resolving green webcam preview artifacts**.
+* `ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (in `--disable-features`):
+  * **Root Cause**: Apple's ScreenCaptureKit captures entire screen/display streams natively as bi-planar NV12 `IOSurface` frames (whereas single-window capture uses 32-bit single-plane BGRA). When previewed locally, the full-screen NV12 stream produces green artifacting and stride distortions under ANGLE OpenGL CGL.
+  * **Fix**: Disables ScreenCaptureKit whole-display capture, prompting Chromium to fall back to the standard macOS desktop capture path (`DesktopCaptureDeviceMac`), **eliminating green glitching and stride distortion during whole-screen sharing**.
 * `--disable-accelerated-2d-canvas`:
   * **Root Cause**: YouTube Ambient Mode draws onto a `<canvas>` behind the player. On legacy CGL drivers, GPU texture recycling fails to clear previous thumbnail textures from the pool.
   * **Fix**: Forces 2D canvas to render via CPU Skia in RAM with 0% memory leaks, while 3D, WebGL, WebGPU, and Compositing stay fully accelerated on the GPU.
@@ -282,6 +289,7 @@ The launcher injects flags beyond `--use-angle=gl`, and several trade performanc
 | `--disable-accelerated-video-decode` | Video decoded on CPU. On older Xeons, high-resolution playback may drop frames. |
 | `--disable-zero-copy`, `--ui-disable-zero-copy` | Extra texture copies per frame; more memory bandwidth. |
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Additional copies in the compositor and video paths. |
+| `--disable-video-capture-use-gpu-memory-buffer` | Camera frames copied to CPU memory before texture upload; eliminates green webcam glitch. |
 | `--disable-accelerated-2d-canvas` | 2D canvas rasterised on CPU. |
 | `--disable-partial-raster` | Full tile re-rasterisation instead of partial updates. |
 | `--disable-features=SkiaGraphite` | Falls back to the Ganesh raster path. |

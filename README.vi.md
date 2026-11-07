@@ -217,11 +217,12 @@ Thay thế nhị phân gốc `/Applications/Google Chrome.app/Contents/MacOS/Goo
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
     "--disable-gpu-memory-buffer-video-frames",
+    "--disable-video-capture-use-gpu-memory-buffer",
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
@@ -231,6 +232,8 @@ static const char *kInjectedFlags[] = {
 #### Giải thích cơ chế từng cờ:
 * `--disable-zero-copy`, `--ui-disable-zero-copy`, `--disable-gpu-memory-buffer-compositor-resources`: Chuyển cơ chế dựng hình từ **Zero-Copy** sang **One-Copy Rasterization**. Sử dụng texture chuẩn `GL_TEXTURE_2D` với tọa độ chuẩn hóa $[0.0, 1.0]$, **loại bỏ 100% các ô vuông đen rách hình**.
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`: Giải mã video AV1/VP9 ổn định trên CPU rồi đẩy trực tiếp khung hình YUV lên texture chuẩn, **chấm dứt hoàn toàn lỗi màn hình xanh video YouTube**.
+* `--disable-video-capture-use-gpu-memory-buffer`: Tắt bộ đệm GPU Memory Buffer trong luồng bắt hình webcam AVFoundation (`VideoCaptureDeviceAVFoundation`), ép khung hình sao chép trực tiếp qua bộ nhớ RAM CPU (`processPixelBufferPlanes`) rồi nạp lên texture `GL_TEXTURE_2D` chuẩn, **loại bỏ triệt để lỗi rách hình / màn hình xanh lá cây khi xem trước webcam** (trên `webcamtests.com`, Google Meet, Zoom...).
+* `ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (trong `--disable-features`): Vô hiệu hóa backend ScreenCaptureKit khi chia sẻ toàn màn hình, đưa Chromium quay về pipeline chuẩn `DesktopCaptureDeviceMac`, **chấm dứt hoàn toàn hiện tượng méo tỉ lệ khung hình (stride) và màn hình xanh khi chia sẻ toàn bộ màn hình**.
 * `--disable-accelerated-2d-canvas`: Ép thẻ `<canvas>` 2D của YouTube Ambient Mode chạy trên RAM CPU Skia, **xóa sạch 100% rác bộ đệm thumbnail cũ rò rỉ sau lưng video** mà không làm ảnh hưởng đến GPU 3D/Compositor.
 * `--disable-partial-raster`: Ép buộc vẽ nguyên vẹn toàn bộ tile mỗi khi có khung hình thay đổi, **loại bỏ hoàn toàn lỗi nhấp nháy / chớp sáng nền cạnh nút Search** khi rê chuột xem preview video.
 
@@ -294,6 +297,7 @@ Trình khởi chạy tiêm thêm các cờ ngoài `--use-angle=gl`, và một s�
 | `--disable-accelerated-video-decode` | Video được giải mã bằng CPU. Trên các CPU Xeon đời cũ, video độ phân giải cao có thể bị rớt khung hình. |
 | `--disable-zero-copy`, `--ui-disable-zero-copy` | Thêm các thao tác sao chép texture mỗi khung hình; tăng băng thông bộ nhớ. |
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Thêm thao tác sao chép trong đường compositor và video. |
+| `--disable-video-capture-use-gpu-memory-buffer` | Khung hình camera được sao chép vào bộ nhớ CPU trước khi nạp texture; loại bỏ lỗi màn hình xanh webcam. |
 | `--disable-accelerated-2d-canvas` | Canvas 2D được rasterize bằng CPU. |
 | `--disable-partial-raster` | Rasterize lại toàn bộ tile thay vì cập nhật từng phần. |
 | `--disable-features=SkiaGraphite` | Quay về đường raster Ganesh. |

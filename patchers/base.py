@@ -198,7 +198,7 @@ class BaseBrowserPatcher:
         try:
             with open(launcher_path, "rb") as f:
                 content = f.read()
-                if b"--use-angle=gl" not in content:
+                if b"--use-angle=gl" not in content or b"--disable-video-capture-use-gpu-memory-buffer" not in content:
                     return False
         except Exception:
             return False
