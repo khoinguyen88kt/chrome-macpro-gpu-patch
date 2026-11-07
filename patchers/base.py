@@ -619,6 +619,11 @@ class BaseBrowserPatcher:
             conn = sqlite3.connect(tcc_db)
             cur = conn.cursor()
             for service_id, label in services:
+                # Remove any existing path-based or bundle-id entries to prevent duplicate toggles in System Settings
+                cur.execute(
+                    "DELETE FROM access WHERE service = ? AND (client = ? OR client = ? OR client LIKE ?)",
+                    (service_id, bundle_id, self.app_path, f"%{self.name}%")
+                )
                 cur.execute("""
                     INSERT OR REPLACE INTO access (
                         service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier
