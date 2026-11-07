@@ -492,15 +492,16 @@ class BaseBrowserPatcher:
             print(f"[!] Codesign verification warning: {v.stderr.strip()}")
             return False
 
-    def grant_privacy_permissions(self):
+    def grant_privacy_permissions(self, auto_yes=False):
         """
-        Injects Camera and Microphone authorization into macOS TCC database.
+        Opt-in tool to grant Camera and Microphone authorization in macOS TCC database.
         
         Because the application is re-signed with a local certificate (LocalCodeSigner),
         macOS invalidates previous vendor permissions and silently suppresses interactive
         camera/microphone prompts ('Policy disallows prompt').
         This method dynamically extracts the application's designated requirement, compiles
-        the binary csreq structure, and inserts/updates authorization records in:
+        the binary csreq structure, creates a safety backup of TCC.db, and inserts/updates
+        authorization records in:
         ~/Library/Application Support/com.apple.TCC/TCC.db
         """
         bundle_id = self.bundle_id
@@ -522,6 +523,32 @@ class BaseBrowserPatcher:
         if not os.path.exists(self.app_path):
             print(f"[!] Cannot grant permissions: {self.app_path} does not exist.")
             return False
+
+        tcc_db_dir = os.path.expanduser("~/Library/Application Support/com.apple.TCC")
+        tcc_db = os.path.join(tcc_db_dir, "TCC.db")
+
+        if not os.path.exists(tcc_db):
+            print(f"[!] User TCC database not found at {tcc_db}.")
+            return False
+
+        print(f"\n[*] Privacy Permission Notice:")
+        print(f"    Modifying macOS TCC permissions directly requires user consent and")
+        print(f"    may fail unless Terminal has Full Disk Access (FDA) in System Settings.")
+        print(f"    This will inject Camera & Microphone authorization for {self.name}")
+        print(f"    ({bundle_id}) into your user TCC database.")
+
+        if not auto_yes:
+            if not sys.stdin.isatty():
+                print("[-] Non-interactive session detected and -y/--yes was not specified. Aborting.")
+                return False
+            try:
+                choice = input(f"\nProceed with granting Camera & Microphone permissions for {self.name}? [y/N]: ").strip().lower()
+                if choice not in ("y", "yes"):
+                    print("[-] Canceled by user.")
+                    return False
+            except (KeyboardInterrupt, EOFError):
+                print("\n[-] Canceled by user.")
+                return False
 
         print(f"[*] Configuring macOS privacy permissions (Camera & Microphone) for {self.name}...")
 
@@ -568,15 +595,21 @@ class BaseBrowserPatcher:
             print(f"[!] Warning: Could not compile binary code requirement for {bundle_id}.")
             return False
 
-        # 3. Update the user TCC database
-        import sqlite3
-        tcc_db_dir = os.path.expanduser("~/Library/Application Support/com.apple.TCC")
-        tcc_db = os.path.join(tcc_db_dir, "TCC.db")
-
-        if not os.path.exists(tcc_db):
-            print(f"[!] User TCC database not found at {tcc_db}.")
+        # 3. Create safety backup of TCC.db before modification
+        import time
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        bak_path = f"{tcc_db}.bak_{timestamp}"
+        try:
+            shutil.copy2(tcc_db, bak_path)
+            print(f"[+] Safety backup of TCC.db created at:")
+            print(f"    {bak_path}")
+        except Exception as e:
+            print(f"[!] Error: Failed to create safety backup of TCC.db: {e}")
+            print("[-] Aborting modification to protect database integrity.")
             return False
 
+        # 4. Update the user TCC database
+        import sqlite3
         services = [
             ("kTCCServiceCamera", "Camera"),
             ("kTCCServiceMicrophone", "Microphone")
@@ -597,9 +630,10 @@ class BaseBrowserPatcher:
         except Exception as e:
             print(f"[!] Warning: Failed to update TCC database: {e}")
             print("    (If macOS blocked access, grant Terminal Full Disk Access in System Settings > Privacy & Security).")
+            print(f"    You can restore your TCC database anytime from: {bak_path}")
             return False
 
-        # 4. Refresh macOS privacy daemon (tccd)
+        # 5. Refresh macOS privacy daemon (tccd)
         try:
             uid = os.getuid()
             subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/com.apple.tccd"], capture_output=True)
@@ -607,7 +641,7 @@ class BaseBrowserPatcher:
         except Exception as e:
             print(f"[*] Note: Could not kickstart tccd: {e}")
 
-        # 5. Check if application is currently running
+        # 6. Check if application is currently running
         try:
             if self.launcher_name:
                 res = subprocess.run(["pgrep", "-x", self.launcher_name], capture_output=True, text=True)
@@ -672,7 +706,7 @@ class BaseBrowserPatcher:
         except Exception as e:
             return "ERROR", str(e)
 
-    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False, fix_permissions=False):
+    def run_patch(self, auto=False, notify_user=False, check_only=False, restore_mode=False, force=False, test_gpu=False, fix_permissions=False, auto_yes=False):
         if not self.is_installed():
             print(f"[-] {self.name} is not installed at {self.app_path}.")
             return 1
@@ -682,7 +716,7 @@ class BaseBrowserPatcher:
             print(f" [{self.name}] Target: {self.app_path}")
             print(f" Action: Inject macOS Privacy Permissions (Camera & Mic)")
             print(f"{'='*60}")
-            ok = self.grant_privacy_permissions()
+            ok = self.grant_privacy_permissions(auto_yes=auto_yes)
             return 0 if ok else 1
 
         current_ver = self.get_current_version()
@@ -766,9 +800,6 @@ class BaseBrowserPatcher:
 
         # 7. Verification
         sig_ok = self.verify_signature()
-
-        # 8. Post-patch permissions injection (Camera & Microphone)
-        self.grant_privacy_permissions()
 
         if sig_ok:
             if notify_user or auto:

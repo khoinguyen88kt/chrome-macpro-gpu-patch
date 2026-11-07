@@ -136,7 +136,7 @@ def main():
     parser.add_argument("--test-gpu", action="store_true", help="Run a live headless WebGL probe to verify active GPU hardware acceleration")
     parser.add_argument("--restore", action="store_true", help="Restore original binaries/executables from backup")
     parser.add_argument("--fix-permissions", action="store_true",
-                        help="Inject/update Camera and Microphone privacy permissions for target browser(s) in macOS TCC database")
+                        help="Opt-in: inject Camera and Microphone privacy permissions for target browser(s) in macOS TCC database")
     parser.add_argument("--force", action="store_true", help="Force re-applying patch even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
     parser.add_argument("--notify", action="store_true", help="Send macOS system notification on success")
@@ -234,7 +234,8 @@ def main():
             restore_mode=args.restore,
             force=args.force,
             test_gpu=args.test_gpu,
-            fix_permissions=args.fix_permissions
+            fix_permissions=args.fix_permissions,
+            auto_yes=args.yes
         )
         if code != 0:
             overall_exit_code = code
