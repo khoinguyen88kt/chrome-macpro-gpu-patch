@@ -10,7 +10,7 @@
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",

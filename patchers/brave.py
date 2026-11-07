@@ -44,10 +44,11 @@ class BravePatcher(BaseBrowserPatcher):
         if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
             return False
 
-        # 3. Check if Pattern 1, Pattern 2, and Pattern 7 are patched
+        # 3. Check if Pattern 1, Pattern 2, Pattern 7, and Pattern 8 are patched
         p1_patched = bytes.fromhex("84 c0 90 90 80 7d b8 00 74 cd 48 8b 45 b0")
         p2_patched = re.compile(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00", re.DOTALL)
         p7_applied = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00", re.DOTALL)
+        p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
         try:
             with open(fw_bin, "rb") as f:
                 data = f.read()
@@ -56,6 +57,8 @@ class BravePatcher(BaseBrowserPatcher):
                 if not p2_patched.search(data) and not re.search(rb"\x84\xc0\xe9.{4}\x90\x83\x7d.\x00\x0f\x85", data, re.DOTALL):
                     return False
                 if not p7_applied.search(data):
+                    return False
+                if not p8_applied.search(data):
                     return False
         except Exception:
             return False
@@ -276,6 +279,23 @@ class BravePatcher(BaseBrowserPatcher):
             print("[!] Warning: Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) pattern not found!")
             return False
 
+        def patch_p8_desktop_capture(data: bytearray):
+            p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            if p8_applied.search(data):
+                print("[*] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) is already applied.")
+                return True
+
+            p8_orig = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            m = p8_orig.search(data)
+            if m:
+                offset = m.start()
+                data[offset : offset + 3] = b"\x31\xc0\xc3"
+                print(f"[+] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) applied successfully at {hex(offset)}!")
+                return True
+
+            print("[!] Warning: Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) pattern not found!")
+            return False
+
         return [
             ("Patch 1 (GetAllowedGLImplementation)", patch_p1_allowed_gl),
             ("Patch 2 (GetDisplayInitializationParams)", patch_p2_display_init),
@@ -283,5 +303,6 @@ class BravePatcher(BaseBrowserPatcher):
             ("Patch 4 (Seatbelt IsSandboxed)", patch_p4_seatbelt),
             ("Patch 5 (IOSurfaceImageBackingFactory target 0x84f5)", patch_p5_factory_target),
             ("Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget)", patch_p6_validate_target),
-            ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)", patch_p7_backing_target)
+            ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)", patch_p7_backing_target),
+            ("Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer)", patch_p8_desktop_capture)
         ]
