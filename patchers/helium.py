@@ -315,6 +315,23 @@ class HeliumPatcher(BaseBrowserPatcher):
             print("[!] Warning: Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) pattern not found!")
             return False
 
+        def patch_p8_desktop_capture(data: bytearray):
+            p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            if p8_applied.search(data):
+                print("[*] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) is already applied.")
+                return True
+
+            p8_orig = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            m = p8_orig.search(data)
+            if m:
+                offset = m.start()
+                data[offset : offset + 3] = b"\x31\xc0\xc3"
+                print(f"[+] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) applied successfully at 0x{offset:x}!")
+                return True
+
+            print("[!] Warning: Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) pattern not found!")
+            return False
+
         return [
             ("Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL)", patch_p1_force_allowed_gl),
             ("Patch 2 (GetDisplayInitializationParams)", patch_p2_display_params),
@@ -323,4 +340,5 @@ class HeliumPatcher(BaseBrowserPatcher):
             ("Patch 5 (IOSurfaceImageBackingFactory target 0x84f5)", patch_p5_iosurface_factory),
             ("Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget)", patch_p6_validate_target),
             ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)", patch_p7_iosurface_backing),
+            ("Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer)", patch_p8_desktop_capture),
         ]

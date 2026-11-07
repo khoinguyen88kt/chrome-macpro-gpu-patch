@@ -199,7 +199,7 @@ Full hardware acceleration enabled on Helium Browser (Compositing, ANGLE OpenGL,
 ## 🔬 Technical Deep Dive
 
 ### 1. Bypassing macOS OpenGL Disablement (Binary Patching)
-The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scanning** to locate and patch 7 critical code locations in `Google Chrome Framework`:
+The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scanning** to locate and patch 8 critical code locations in `Google Chrome Framework`:
 
 | # | Chromium Target Function | Original Byte Sequence | Patched Byte Sequence | Technical Purpose |
 | :---: | :--- | :--- | :--- | :--- |
@@ -210,6 +210,7 @@ The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scannin
 | **5** | `IOSurfaceImageBackingFactory` | `48 8d b5 78 ... 89 44 24 10` | `48 8d b5 78 ... 41 b8 f5 84 00 00` | Sets IOSurface texture target to `GL_TEXTURE_RECTANGLE` (`0x84f5`). |
 | **6** | `ScopedEGLSurfaceIOSurface::ValidateTarget` | `55 48 89 e5 41 56 ...` | `b0 01 c3 90 ...` | Patches validation to always return `true` (`mov al, 1; ret`). |
 | **7** | `IOSurfaceImageBacking` constructor | `8b 45 d0 89 83 88 01 00 00` | `c7 83 88 01 00 00 f5 84 00 00` | Forces `gl_target_ = 0x84f5` across all IOSurface backing instances. |
+| **8** | `CreateDesktopCaptureDeviceMac` | `55 48 89 e5 41 56 53 83 3f 01 ...` | `31 c0 c3 ...` | Forces return of `nullptr` (`xor eax, eax; ret`), falling back to WebRTC CPU desktop capturer to eliminate green screen sharing preview artifacts. |
 
 ---
 
@@ -220,7 +221,7 @@ Rather than using a fragile shell script wrapper, the main executable `/Applicat
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
@@ -242,9 +243,9 @@ static const char *kInjectedFlags[] = {
 * `--disable-video-capture-use-gpu-memory-buffer`:
   * **Root Cause**: AVFoundation video capture (`VideoCaptureDeviceAVFoundation`) exports camera frames as bi-planar NV12 `IOSurface` objects. When attached to `<video>` preview elements in the browser, sampling multi-plane NV12 `IOSurface` textures fails shader mapping under ANGLE OpenGL CGL ($U=0, V=0$), producing green graphics artifacting and corrupted video in webcam previews (e.g. `webcamtests.com`, Google Meet, Zoom).
   * **Fix**: Disables GPU memory buffers in the video capture pipeline, routing frames through CPU memory planes (`processPixelBufferPlanes`) which upload clean standard `GL_TEXTURE_2D` textures with normalized $[0.0, 1.0]$ coordinates, **completely resolving green webcam preview artifacts**.
-* `ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (in `--disable-features`):
-  * **Root Cause**: Apple's ScreenCaptureKit captures entire screen/display streams natively as bi-planar NV12 `IOSurface` frames (whereas single-window capture uses 32-bit single-plane BGRA). When previewed locally, the full-screen NV12 stream produces green artifacting and stride distortions under ANGLE OpenGL CGL.
-  * **Fix**: Disables ScreenCaptureKit whole-display capture, prompting Chromium to fall back to the standard macOS desktop capture path (`DesktopCaptureDeviceMac`), **eliminating green glitching and stride distortion during whole-screen sharing**.
+* `ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (in `--disable-features`) & **Patch 8**:
+  * **Root Cause**: Apple's ScreenCaptureKit and `CGDisplayStream` (`DesktopCaptureDeviceMac`) capture display frames natively as bi-planar NV12 `IOSurface` buffers. Under legacy OpenGL on patched macOS, ANGLE binds `IOSurface` via `GL_TEXTURE_RECTANGLE` (`0x84f5`). Skia Ganesh's YUV-to-RGB conversion shader fails to sample the UV chroma plane from rectangle textures ($U=0, V=0$), producing green visual artifacts and stride distortion during screen sharing previews.
+  * **Fix**: Disables ScreenCaptureKit display capture via `--disable-features` and returns `nullptr` from `CreateDesktopCaptureDeviceMac` via Patch 8 (`xor eax, eax; ret`). This prompts Chromium's capture device launcher to fall back to generic WebRTC desktop capture (`DesktopCaptureDevice::Create`) in CPU system RAM, delivering frames through standard `GL_TEXTURE_2D` texture uploads, **completely eliminating green visual artifacts and distortion during screen sharing**.
 * `--disable-accelerated-2d-canvas`:
   * **Root Cause**: YouTube Ambient Mode draws onto a `<canvas>` behind the player. On legacy CGL drivers, GPU texture recycling fails to clear previous thumbnail textures from the pool.
   * **Fix**: Forces 2D canvas to render via CPU Skia in RAM with 0% memory leaks, while 3D, WebGL, WebGPU, and Compositing stay fully accelerated on the GPU.

@@ -198,7 +198,7 @@ Kích hoạt thành công tăng tốc phần cứng 100% trên Helium Browser (C
 ## 🔬 Chi Tiết Kỹ Thuật & Nguyên Lý Khắc Phục (Technical Deep Dive)
 
 ### 1. Phá bỏ rào cản cấm ANGLE OpenGL (Binary Patching)
-Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị phân (Pattern Scanning) trên file `Google Chrome Framework` và áp dụng 7 bản vá:
+Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị phân (Pattern Scanning) trên file `Google Chrome Framework` và áp dụng 8 bản vá:
 
 | STT | Vị trí hàm Chromium | Chuỗi Byte Gốc | Chuỗi Byte Sau Khi Vá | Tác dụng |
 | :--- | :--- | :--- | :--- | :--- |
@@ -209,6 +209,7 @@ Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị ph�
 | **Patch 5** | `IOSurfaceImageBackingFactory` | `48 8d b5 78 ... 89 44 24 10` | `48 8d b5 78 ... 41 b8 f5 84 00 00` | Gán target texture `GL_TEXTURE_RECTANGLE` (`0x84f5`) cho IOSurface. |
 | **Patch 6** | `ScopedEGLSurfaceIOSurface::ValidateTarget` | `55 48 89 e5 41 56 ...` | `b0 01 c3 90 ...` | Patch hàm luôn trả về `true` (`mov al, 1; ret`). |
 | **Patch 7** | `IOSurfaceImageBacking` constructor | `8b 45 d0 89 83 88 01 00 00` | `c7 83 88 01 00 00 f5 84 00 00` | Ép `gl_target_ = 0x84f5` cho mọi backing IOSurface. |
+| **Patch 8** | `CreateDesktopCaptureDeviceMac` | `55 48 89 e5 41 56 53 83 3f 01 ...` | `31 c0 c3 ...` | Ép hàm trả về `nullptr` (`xor eax, eax; ret`), chuyển sang bộ bắt hình CPU chuẩn của WebRTC, loại bỏ triệt để lỗi rách hình / màn hình xanh khi chia sẻ màn hình. |
 
 ---
 
@@ -219,7 +220,7 @@ Thay thế nhị phân gốc `/Applications/Google Chrome.app/Contents/MacOS/Goo
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
@@ -235,7 +236,7 @@ static const char *kInjectedFlags[] = {
 * `--disable-zero-copy`, `--ui-disable-zero-copy`, `--disable-gpu-memory-buffer-compositor-resources`: Chuyển cơ chế dựng hình từ **Zero-Copy** sang **One-Copy Rasterization**. Sử dụng texture chuẩn `GL_TEXTURE_2D` với tọa độ chuẩn hóa $[0.0, 1.0]$, **loại bỏ 100% các ô vuông đen rách hình**.
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`: Giải mã video AV1/VP9 ổn định trên CPU rồi đẩy trực tiếp khung hình YUV lên texture chuẩn, **chấm dứt hoàn toàn lỗi màn hình xanh video YouTube**.
 * `--disable-video-capture-use-gpu-memory-buffer`: Tắt bộ đệm GPU Memory Buffer trong luồng bắt hình webcam AVFoundation (`VideoCaptureDeviceAVFoundation`), ép khung hình sao chép trực tiếp qua bộ nhớ RAM CPU (`processPixelBufferPlanes`) rồi nạp lên texture `GL_TEXTURE_2D` chuẩn, **loại bỏ triệt để lỗi rách hình / màn hình xanh lá cây khi xem trước webcam** (trên `webcamtests.com`, Google Meet, Zoom...).
-* `ScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (trong `--disable-features`): Vô hiệu hóa backend ScreenCaptureKit khi chia sẻ toàn màn hình, đưa Chromium quay về pipeline chuẩn `DesktopCaptureDeviceMac`, **chấm dứt hoàn toàn hiện tượng méo tỉ lệ khung hình (stride) và màn hình xanh khi chia sẻ toàn bộ màn hình**.
+* `ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (trong `--disable-features`) & **Patch 8**: Vô hiệu hóa backend ScreenCaptureKit và chuyển `CreateDesktopCaptureDeviceMac` về `nullptr` bằng Patch 8, đưa Chromium quay về pipeline chuẩn `DesktopCaptureDevice::Create` (bắt hình vào RAM CPU), **chấm dứt hoàn toàn hiện tượng méo tỉ lệ khung hình (stride) và màn hình xanh khi chia sẻ toàn bộ màn hình**.
 * `--disable-accelerated-2d-canvas`: Ép thẻ `<canvas>` 2D của YouTube Ambient Mode chạy trên RAM CPU Skia, **xóa sạch 100% rác bộ đệm thumbnail cũ rò rỉ sau lưng video** mà không làm ảnh hưởng đến GPU 3D/Compositor.
 * `--disable-partial-raster`: Ép buộc vẽ nguyên vẹn toàn bộ tile mỗi khi có khung hình thay đổi, **loại bỏ hoàn toàn lỗi nhấp nháy / chớp sáng nền cạnh nút Search** khi rê chuột xem preview video.
 
