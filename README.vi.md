@@ -96,6 +96,8 @@ python3 patch.py helium
 | `python3 patch.py --list` | Liệt kê danh sách trình duyệt hỗ trợ, đường dẫn cài đặt phát hiện được và trạng thái. |
 | `python3 patch.py --check all` | Kiểm tra trạng thái vá và chữ ký của tất cả các trình duyệt. |
 | `python3 patch.py --test-gpu all` | Chạy probe WebGL headless kiểm tra khả năng tăng tốc phần cứng GPU thực tế lúc chạy. |
+| `python3 patch.py --fix-permissions` | Tùy chọn: hỏi xác nhận và cấp quyền Camera & Microphone cho mọi trình duyệt trong database TCC macOS (tạo bản sao lưu TCC.db). |
+| `python3 patch.py chrome --fix-permissions` | Tùy chọn: hỏi xác nhận và cấp quyền Camera & Microphone riêng cho Google Chrome (tạo bản sao lưu TCC.db). |
 | `python3 patch.py --restore all` | Khôi phục lại bản nhị phân sạch gốc từ backup cho mọi trình duyệt. |
 | `python3 patch.py --restore chrome` | Khôi phục lại Google Chrome gốc ban đầu từ backup. |
 | `python3 patch.py --restore brave` | Khôi phục lại Brave Browser gốc ban đầu từ backup. |
@@ -196,7 +198,7 @@ Kích hoạt thành công tăng tốc phần cứng 100% trên Helium Browser (C
 ## 🔬 Chi Tiết Kỹ Thuật & Nguyên Lý Khắc Phục (Technical Deep Dive)
 
 ### 1. Phá bỏ rào cản cấm ANGLE OpenGL (Binary Patching)
-Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị phân (Pattern Scanning) trên file `Google Chrome Framework` và áp dụng 7 bản vá:
+Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị phân (Pattern Scanning) trên file `Google Chrome Framework` và áp dụng 8 bản vá:
 
 | STT | Vị trí hàm Chromium | Chuỗi Byte Gốc | Chuỗi Byte Sau Khi Vá | Tác dụng |
 | :--- | :--- | :--- | :--- | :--- |
@@ -207,6 +209,7 @@ Script [`auto_patch_chrome.py`](auto_patch_chrome.py) quét mẫu byte nhị ph�
 | **Patch 5** | `IOSurfaceImageBackingFactory` | `48 8d b5 78 ... 89 44 24 10` | `48 8d b5 78 ... 41 b8 f5 84 00 00` | Gán target texture `GL_TEXTURE_RECTANGLE` (`0x84f5`) cho IOSurface. |
 | **Patch 6** | `ScopedEGLSurfaceIOSurface::ValidateTarget` | `55 48 89 e5 41 56 ...` | `b0 01 c3 90 ...` | Patch hàm luôn trả về `true` (`mov al, 1; ret`). |
 | **Patch 7** | `IOSurfaceImageBacking` constructor | `8b 45 d0 89 83 88 01 00 00` | `c7 83 88 01 00 00 f5 84 00 00` | Ép `gl_target_ = 0x84f5` cho mọi backing IOSurface. |
+| **Patch 8** | `CreateDesktopCaptureDeviceMac` | `55 48 89 e5 41 56 53 83 3f 01 ...` | `31 c0 c3 ...` | Ép hàm trả về `nullptr` (`xor eax, eax; ret`), chuyển sang bộ bắt hình CPU chuẩn của WebRTC, loại bỏ triệt để lỗi rách hình / màn hình xanh khi chia sẻ màn hình. |
 
 ---
 
@@ -217,11 +220,12 @@ Thay thế nhị phân gốc `/Applications/Google Chrome.app/Contents/MacOS/Goo
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
     "--disable-gpu-memory-buffer-video-frames",
+    "--disable-video-capture-use-gpu-memory-buffer",
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
@@ -231,6 +235,8 @@ static const char *kInjectedFlags[] = {
 #### Giải thích cơ chế từng cờ:
 * `--disable-zero-copy`, `--ui-disable-zero-copy`, `--disable-gpu-memory-buffer-compositor-resources`: Chuyển cơ chế dựng hình từ **Zero-Copy** sang **One-Copy Rasterization**. Sử dụng texture chuẩn `GL_TEXTURE_2D` với tọa độ chuẩn hóa $[0.0, 1.0]$, **loại bỏ 100% các ô vuông đen rách hình**.
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`: Giải mã video AV1/VP9 ổn định trên CPU rồi đẩy trực tiếp khung hình YUV lên texture chuẩn, **chấm dứt hoàn toàn lỗi màn hình xanh video YouTube**.
+* `--disable-video-capture-use-gpu-memory-buffer`: Tắt bộ đệm GPU Memory Buffer trong luồng bắt hình webcam AVFoundation (`VideoCaptureDeviceAVFoundation`), ép khung hình sao chép trực tiếp qua bộ nhớ RAM CPU (`processPixelBufferPlanes`) rồi nạp lên texture `GL_TEXTURE_2D` chuẩn, **loại bỏ triệt để lỗi rách hình / màn hình xanh lá cây khi xem trước webcam** (trên `webcamtests.com`, Google Meet, Zoom...).
+* `ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (trong `--disable-features`) & **Patch 8**: Vô hiệu hóa backend ScreenCaptureKit và chuyển `CreateDesktopCaptureDeviceMac` về `nullptr` bằng Patch 8, đưa Chromium quay về pipeline chuẩn `DesktopCaptureDevice::Create` (bắt hình vào RAM CPU), **chấm dứt hoàn toàn hiện tượng méo tỉ lệ khung hình (stride) và màn hình xanh khi chia sẻ toàn bộ màn hình**.
 * `--disable-accelerated-2d-canvas`: Ép thẻ `<canvas>` 2D của YouTube Ambient Mode chạy trên RAM CPU Skia, **xóa sạch 100% rác bộ đệm thumbnail cũ rò rỉ sau lưng video** mà không làm ảnh hưởng đến GPU 3D/Compositor.
 * `--disable-partial-raster`: Ép buộc vẽ nguyên vẹn toàn bộ tile mỗi khi có khung hình thay đổi, **loại bỏ hoàn toàn lỗi nhấp nháy / chớp sáng nền cạnh nút Search** khi rê chuột xem preview video.
 
@@ -283,7 +289,21 @@ Chiến lược wrapper cho Electron không gặp vấn đề này — đó chí
 
 ### Quyền riêng tư TCC
 
-Các quyền camera, micro và ghi màn hình cũng gắn với chữ ký mã. Trình duyệt đã ký lại có thể cần được cấp lại các quyền này, và những quyền đã cấp trước đó có thể âm thầm không còn hiệu lực. Điều này đáng lưu ý nếu bạn dùng trình duyệt để gọi video hoặc chia sẻ màn hình.
+Các quyền truy cập Camera, Microphone và Ghi màn hình được gắn chặt với chữ ký mã (cryptographic code signature) của ứng dụng. Khi trình duyệt được ký lại với `LocalCodeSigner`, macOS sẽ vô hiệu hóa các quyền cấp trước đó vốn gắn liền với Developer ID ban đầu của nhà phát triển. Trên các phiên bản macOS hiện đại (Sequoia, Sonoma, Ventura), macOS có thể âm thầm chặn (suppress) các hộp thoại hỏi cấp quyền Camera/Microphone đối với các file nhị phân tự ký cục bộ (`Policy disallows prompt`).
+
+*Lưu ý đối với quyền Ghi màn hình:* Quyền ghi màn hình (`kTCCServiceScreenCapture`) sử dụng bộ chọn giao diện gốc `ScreenCaptureKit` của macOS, sẽ hiển thị hộp thoại xin cấp quyền bình thường ở lần sử dụng đầu tiên và có thể phê duyệt trực tiếp trong Cài đặt hệ thống (System Settings).
+
+**Công cụ cấp quyền tùy chọn (`--fix-permissions`):**
+Nhằm đảm bảo an toàn tuyệt đối và tránh can thiệp vào file hệ thống trong quá trình vá thông thường, patcher cung cấp một tùy chọn chủ động riêng:
+```bash
+python3 patch.py chrome --fix-permissions   # Dành cho riêng Google Chrome
+python3 patch.py --fix-permissions          # Dành cho tất cả trình duyệt đã cài đặt
+```
+Khi thực thi:
+1. Hiển thị thông báo và yêu cầu người dùng xác nhận rõ ràng (`[y/N]`, hoặc cờ `-y` / `--yes` khi tự động hóa).
+2. Tự động tạo bản sao lưu an toàn cho cơ sở dữ liệu TCC (`~/Library/Application Support/com.apple.TCC/TCC.db.bak_<timestamp>`).
+3. Tự động biên dịch mã yêu cầu (designated requirement) cho ứng dụng đã ký và cấp quyền `kTCCServiceCamera` cùng `kTCCServiceMicrophone` vào cơ sở dữ liệu người dùng mà không cần quyền `sudo`.
+4. Khởi động lại daemon `tccd` để các thay đổi có hiệu lực ngay lập tức.
 
 ### Hiệu năng kết xuất
 
@@ -294,6 +314,7 @@ Trình khởi chạy tiêm thêm các cờ ngoài `--use-angle=gl`, và một s�
 | `--disable-accelerated-video-decode` | Video được giải mã bằng CPU. Trên các CPU Xeon đời cũ, video độ phân giải cao có thể bị rớt khung hình. |
 | `--disable-zero-copy`, `--ui-disable-zero-copy` | Thêm các thao tác sao chép texture mỗi khung hình; tăng băng thông bộ nhớ. |
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Thêm thao tác sao chép trong đường compositor và video. |
+| `--disable-video-capture-use-gpu-memory-buffer` | Khung hình camera được sao chép vào bộ nhớ CPU trước khi nạp texture; loại bỏ lỗi màn hình xanh webcam. |
 | `--disable-accelerated-2d-canvas` | Canvas 2D được rasterize bằng CPU. |
 | `--disable-partial-raster` | Rasterize lại toàn bộ tile thay vì cập nhật từng phần. |
 | `--disable-features=SkiaGraphite` | Quay về đường raster Ganesh. |

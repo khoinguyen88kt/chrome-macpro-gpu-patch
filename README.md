@@ -96,6 +96,8 @@ python3 patch.py helium
 | `python3 patch.py --list` | Lists all supported browsers, detected install paths, and patch status. |
 | `python3 patch.py --check all` | Checks if installed browsers are already fully patched and signed. |
 | `python3 patch.py --test-gpu all` | Runs a live headless WebGL probe to verify active GPU hardware acceleration. |
+| `python3 patch.py --fix-permissions` | Opt-in: prompts and injects Camera & Microphone permissions for all installed browsers in macOS TCC database (creates safety backup). |
+| `python3 patch.py chrome --fix-permissions` | Opt-in: prompts and injects Camera & Microphone permissions for Google Chrome only (creates safety backup). |
 | `python3 patch.py --restore all` | Restores clean unpatched original binaries from backup for all browsers. |
 | `python3 patch.py --restore chrome` | Restores original unpatched Google Chrome from backup. |
 | `python3 patch.py --restore brave` | Restores original unpatched Brave Browser from backup. |
@@ -197,7 +199,7 @@ Full hardware acceleration enabled on Helium Browser (Compositing, ANGLE OpenGL,
 ## 🔬 Technical Deep Dive
 
 ### 1. Bypassing macOS OpenGL Disablement (Binary Patching)
-The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scanning** to locate and patch 7 critical code locations in `Google Chrome Framework`:
+The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scanning** to locate and patch 8 critical code locations in `Google Chrome Framework`:
 
 | # | Chromium Target Function | Original Byte Sequence | Patched Byte Sequence | Technical Purpose |
 | :---: | :--- | :--- | :--- | :--- |
@@ -208,6 +210,7 @@ The [`auto_patch_chrome.py`](auto_patch_chrome.py) script uses **Pattern Scannin
 | **5** | `IOSurfaceImageBackingFactory` | `48 8d b5 78 ... 89 44 24 10` | `48 8d b5 78 ... 41 b8 f5 84 00 00` | Sets IOSurface texture target to `GL_TEXTURE_RECTANGLE` (`0x84f5`). |
 | **6** | `ScopedEGLSurfaceIOSurface::ValidateTarget` | `55 48 89 e5 41 56 ...` | `b0 01 c3 90 ...` | Patches validation to always return `true` (`mov al, 1; ret`). |
 | **7** | `IOSurfaceImageBacking` constructor | `8b 45 d0 89 83 88 01 00 00` | `c7 83 88 01 00 00 f5 84 00 00` | Forces `gl_target_ = 0x84f5` across all IOSurface backing instances. |
+| **8** | `CreateDesktopCaptureDeviceMac` | `55 48 89 e5 41 56 53 83 3f 01 ...` | `31 c0 c3 ...` | Forces return of `nullptr` (`xor eax, eax; ret`), falling back to WebRTC CPU desktop capturer to eliminate green screen sharing preview artifacts. |
 
 ---
 
@@ -218,11 +221,12 @@ Rather than using a fragile shell script wrapper, the main executable `/Applicat
 static const char *kInjectedFlags[] = {
     "--use-angle=gl",
     "--ignore-gpu-blocklist",
-    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI",
+    "--disable-features=SkiaGraphite,MediaGmbVideoFramePoolMappableSI,ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac",
     "--disable-zero-copy",
     "--ui-disable-zero-copy",
     "--disable-gpu-memory-buffer-compositor-resources",
     "--disable-gpu-memory-buffer-video-frames",
+    "--disable-video-capture-use-gpu-memory-buffer",
     "--disable-accelerated-video-decode",
     "--disable-accelerated-2d-canvas",
     "--disable-partial-raster",
@@ -236,6 +240,12 @@ static const char *kInjectedFlags[] = {
 * `--disable-gpu-memory-buffer-video-frames`, `--disable-features=MediaGmbVideoFramePoolMappableSI`, `--disable-accelerated-video-decode`:
   * **Root Cause**: Decoded YUV video frames wrapped in multi-plane IOSurfaces fail shader mapping on Apple CGL ($U=0, V=0 \to$ solid green).
   * **Fix**: Performs clean software decode (dav1d/libgav1) and transfers standard YUV textures directly to the GPU, **fixing green screen playback**.
+* `--disable-video-capture-use-gpu-memory-buffer`:
+  * **Root Cause**: AVFoundation video capture (`VideoCaptureDeviceAVFoundation`) exports camera frames as bi-planar NV12 `IOSurface` objects. When attached to `<video>` preview elements in the browser, sampling multi-plane NV12 `IOSurface` textures fails shader mapping under ANGLE OpenGL CGL ($U=0, V=0$), producing green graphics artifacting and corrupted video in webcam previews (e.g. `webcamtests.com`, Google Meet, Zoom).
+  * **Fix**: Disables GPU memory buffers in the video capture pipeline, routing frames through CPU memory planes (`processPixelBufferPlanes`) which upload clean standard `GL_TEXTURE_2D` textures with normalized $[0.0, 1.0]$ coordinates, **completely resolving green webcam preview artifacts**.
+* `ScreenCaptureKitMacScreen,kScreenCaptureKitMacScreen,ScreenCaptureKitDeviceMac` (in `--disable-features`) & **Patch 8**:
+  * **Root Cause**: Apple's ScreenCaptureKit and `CGDisplayStream` (`DesktopCaptureDeviceMac`) capture display frames natively as bi-planar NV12 `IOSurface` buffers. Under legacy OpenGL on patched macOS, ANGLE binds `IOSurface` via `GL_TEXTURE_RECTANGLE` (`0x84f5`). Skia Ganesh's YUV-to-RGB conversion shader fails to sample the UV chroma plane from rectangle textures ($U=0, V=0$), producing green visual artifacts and stride distortion during screen sharing previews.
+  * **Fix**: Disables ScreenCaptureKit display capture via `--disable-features` and returns `nullptr` from `CreateDesktopCaptureDeviceMac` via Patch 8 (`xor eax, eax; ret`). This prompts Chromium's capture device launcher to fall back to generic WebRTC desktop capture (`DesktopCaptureDevice::Create`) in CPU system RAM, delivering frames through standard `GL_TEXTURE_2D` texture uploads, **completely eliminating green visual artifacts and distortion during screen sharing**.
 * `--disable-accelerated-2d-canvas`:
   * **Root Cause**: YouTube Ambient Mode draws onto a `<canvas>` behind the player. On legacy CGL drivers, GPU texture recycling fails to clear previous thumbnail textures from the pool.
   * **Fix**: Forces 2D canvas to render via CPU Skia in RAM with 0% memory leaks, while 3D, WebGL, WebGPU, and Compositing stay fully accelerated on the GPU.
@@ -271,7 +281,21 @@ The Electron wrapper strategy does not have this problem, which is why it is use
 
 ### TCC privacy permissions
 
-Camera, microphone and screen-recording grants are also keyed to the code signature. Re-signed browsers may need these re-approved, and previously granted permissions may silently stop applying. Relevant if you use the browser for video calls or screen sharing.
+Camera, microphone, and screen-recording authorizations are bound to an application's cryptographic code signature. When a browser is re-signed with `LocalCodeSigner`, macOS invalidates previous permissions tied to the vendor's Developer ID. On modern macOS (Sequoia, Sonoma, Ventura), macOS may silently suppress interactive camera/microphone permission prompts for locally signed binaries (`Policy disallows prompt`).
+
+*Note for Screen Recording:* Screen recording permissions (`kTCCServiceScreenCapture`) use macOS's native `ScreenCaptureKit` picker, which will prompt normally on first use and can be approved directly in macOS System Settings.
+
+**Opt-In Permission Tool (`--fix-permissions`):**
+To safely restore Camera and Microphone access without modifying system files during regular patching, an opt-in helper is provided:
+```bash
+python3 patch.py chrome --fix-permissions   # For Google Chrome
+python3 patch.py --fix-permissions          # For all installed browsers
+```
+When executed:
+1. It displays a notice and asks for explicit user confirmation (`[y/N]`, or `-y` / `--yes` for non-interactive automation).
+2. It automatically creates a safety backup of your TCC database (`~/Library/Application Support/com.apple.TCC/TCC.db.bak_<timestamp>`).
+3. It dynamically extracts and compiles the designated requirement for the signed browser and grants `kTCCServiceCamera` and `kTCCServiceMicrophone` in the user's database without requiring `sudo`.
+4. It refreshes the user `tccd` privacy daemon so changes take effect immediately.
 
 ### Rendering performance
 
@@ -282,6 +306,7 @@ The launcher injects flags beyond `--use-angle=gl`, and several trade performanc
 | `--disable-accelerated-video-decode` | Video decoded on CPU. On older Xeons, high-resolution playback may drop frames. |
 | `--disable-zero-copy`, `--ui-disable-zero-copy` | Extra texture copies per frame; more memory bandwidth. |
 | `--disable-gpu-memory-buffer-compositor-resources`, `--disable-gpu-memory-buffer-video-frames` | Additional copies in the compositor and video paths. |
+| `--disable-video-capture-use-gpu-memory-buffer` | Camera frames copied to CPU memory before texture upload; eliminates green webcam glitch. |
 | `--disable-accelerated-2d-canvas` | 2D canvas rasterised on CPU. |
 | `--disable-partial-raster` | Full tile re-rasterisation instead of partial updates. |
 | `--disable-features=SkiaGraphite` | Falls back to the Ganesh raster path. |

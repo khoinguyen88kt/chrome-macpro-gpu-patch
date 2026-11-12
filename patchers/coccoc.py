@@ -49,6 +49,7 @@ class CocCocPatcher(BaseBrowserPatcher):
         p1_applied = re.compile(rb"\x48\x89\xc1\x48\xc1\xe9\x20\x48\x83\xf9\x09(?:.|\n){1,60}\x84\xc0\x90\x90\x80\x7d(.)\x00", re.DOTALL)
         p3_applied = re.compile(rb"(\x4c\x8d\xa3\x30\x07\x00\x00(?:.|\n){1,80}\x84\xc0\xe9.{4}\x90|\x84\xc0(?:\x90{2}|\x90{6}).{0,16}\xc7\x45.\x01\x00\x00\x00\x48\x8b\x83)", re.DOTALL)
         p7_applied = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00", re.DOTALL)
+        p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
 
         try:
             with open(fw_bin, "rb") as f:
@@ -58,6 +59,8 @@ class CocCocPatcher(BaseBrowserPatcher):
                 if not p3_applied.search(data):
                     return False
                 if not p7_applied.search(data):
+                    return False
+                if not p8_applied.search(data):
                     return False
         except Exception:
             return False
@@ -268,6 +271,23 @@ class CocCocPatcher(BaseBrowserPatcher):
             print("[!] Warning: Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) pattern not found!")
             return False
 
+        def patch_p8_desktop_capture(data: bytearray):
+            p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            if p8_applied.search(data):
+                print("[*] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) is already applied.")
+                return True
+
+            p8_orig = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
+            m = p8_orig.search(data)
+            if m:
+                offset = m.start()
+                data[offset : offset + 3] = b"\x31\xc0\xc3"
+                print(f"[+] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) applied successfully at {hex(offset)}!")
+                return True
+
+            print("[!] Warning: Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) pattern not found!")
+            return False
+
         return [
             ("Patch 1 (GetAllowedGLImplementation)", patch_p1_allowed_gl),
             ("Patch 2 (GetDisplayInitializationParams)", patch_p2_display_init),
@@ -276,6 +296,7 @@ class CocCocPatcher(BaseBrowserPatcher):
             ("Patch 5 (IOSurfaceImageBackingFactory target 0x84f5)", patch_p5_factory_target),
             ("Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget)", patch_p6_validate_target),
             ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)", patch_p7_backing_target),
+            ("Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer)", patch_p8_desktop_capture),
         ]
 
     def probe_gpu_status(self):

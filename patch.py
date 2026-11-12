@@ -119,6 +119,8 @@ def main():
   python3 patch.py --update         # Pull latest version of this tool from GitHub
   python3 patch.py --restore all    # Restore original browser binaries
   python3 patch.py --restore vscode # Restore original Visual Studio Code binary
+  python3 patch.py --fix-permissions # Inject Camera & Mic permissions for all installed browsers
+  python3 patch.py chrome --fix-permissions # Inject Camera & Mic permissions for Chrome only
 """
     )
     parser.add_argument("target", nargs="?", default="all",
@@ -133,6 +135,8 @@ def main():
     parser.add_argument("--check", action="store_true", help="Check if target is already patched on disk")
     parser.add_argument("--test-gpu", action="store_true", help="Run a live headless WebGL probe to verify active GPU hardware acceleration")
     parser.add_argument("--restore", action="store_true", help="Restore original binaries/executables from backup")
+    parser.add_argument("--fix-permissions", action="store_true",
+                        help="Opt-in: inject Camera and Microphone privacy permissions for target browser(s) in macOS TCC database")
     parser.add_argument("--force", action="store_true", help="Force re-applying patch even if already patched")
     parser.add_argument("--auto", action="store_true", help="Background watcher mode (skips if already patched)")
     parser.add_argument("--notify", action="store_true", help="Send macOS system notification on success")
@@ -156,7 +160,7 @@ def main():
             print(f"    {REPO_URL}/releases/latest")
         return 0
 
-    if not args.auto and not args.check and not args.test_gpu:
+    if not args.auto and not args.check and not args.test_gpu and not args.fix_permissions:
         check_for_updates()
 
     if args.list:
@@ -229,12 +233,14 @@ def main():
             check_only=args.check,
             restore_mode=args.restore,
             force=args.force,
-            test_gpu=args.test_gpu
+            test_gpu=args.test_gpu,
+            fix_permissions=args.fix_permissions,
+            auto_yes=args.yes
         )
         if code != 0:
             overall_exit_code = code
 
-    if overall_exit_code == 0 and not args.check and not args.test_gpu and not args.restore and not args.auto:
+    if overall_exit_code == 0 and not args.check and not args.test_gpu and not args.restore and not args.auto and not args.fix_permissions:
         check_and_prompt_launchagent(auto_yes=args.yes)
 
     return overall_exit_code
