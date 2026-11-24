@@ -176,29 +176,30 @@ class ThoriumPatcher(BaseBrowserPatcher):
 
         # Patch 5: ScopedEGLSurfaceIOSurface::ValidateTarget (Force return true)
         def patch_p5_validate_target(data: bytearray):
+            p6_body = (
+                rb"(?:\x41[\x50-\x57]|[\x50-\x57]){0,6}"
+                rb"(?:\x48\x83\xec.|\x48\x81\xec.{4})"
+                rb".{0,12}(?:\x41)?\x81[\xf8-\xff]\xe1\x0d\x00\x00"
+                rb".{1,24}\x5f\x30\x00\x00"
+                rb".{1,64}\xf5\x84\x00\x00"
+            )
             p6_153_pat = bytes.fromhex("b0 01 c3 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90")
             p6_pre_pat = bytes.fromhex("b0 01 c3 90 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            if data.find(p6_153_pat) != -1 or data.find(p6_pre_pat) != -1:
-                print("[*] Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
-                return True
-            p6_applied_re = re.compile(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", re.DOTALL)
-            if p6_applied_re.search(data):
+            if (
+                re.search(rb"\xb0\x01\xc3\x90" + p6_body, data, re.DOTALL)
+                or re.search(re.escape(p6_153_pat) + rb".{1,24}\x5f\x30\x00\x00", data, re.DOTALL)
+                or data.find(p6_pre_pat) != -1
+                or re.search(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", data, re.DOTALL)
+            ):
                 print("[*] Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
                 return True
 
-            p6_153_orig = bytes.fromhex("55 48 89 e5 41 56 53 48 81 ec 30 01 00 00 81 fe e1 0d 00 00")
-            idx = data.find(p6_153_orig)
-            if idx != -1:
-                data[idx : idx + len(p6_153_pat)] = p6_153_pat
-                print(f"[+] Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at 0x{idx:x}!")
-                return True
-
-            p6_re = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){1,4}\x48\x81\xec\x30\x01\x00\x00\x81\xfe\xe1\x0d\x00\x00", re.DOTALL)
+            p6_re = re.compile(rb"\x55\x48\x89\xe5" + p6_body, re.DOTALL)
             m = p6_re.search(data)
             if m:
                 offset = m.start()
-                data[offset : offset + 20] = p6_153_pat
-                print(f"[+] Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied dynamically at 0x{offset:x}!")
+                data[offset : offset + 4] = b"\xb0\x01\xc3\x90"
+                print(f"[+] Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at 0x{offset:x}!")
                 return True
 
             print("[!] Warning: Patch 5 (ScopedEGLSurfaceIOSurface::ValidateTarget) pattern not found!")
