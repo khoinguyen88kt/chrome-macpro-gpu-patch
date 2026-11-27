@@ -6,6 +6,8 @@ codesigning with LocalCodeSigner, and signature validation.
 """
 import os
 import sys
+import pwd
+import re
 import shutil
 import subprocess
 import glob
@@ -14,9 +16,11 @@ import shlex
 
 def notify(title, message):
     try:
+        esc_title = str(title).replace("\\", "\\\\").replace('"', '\\"')
+        esc_msg = str(message).replace("\\", "\\\\").replace('"', '\\"')
         subprocess.run([
             "osascript", "-e",
-            f'display notification "{message}" with title "{title}" sound name "Glass"'
+            f'display notification "{esc_msg}" with title "{esc_title}" sound name "Glass"'
         ], capture_output=True)
     except Exception:
         pass
@@ -35,7 +39,22 @@ def run(cmd):
     return res
 
 def safe_copy(src, dst):
-    subprocess.run(["cp", "-f", src, dst], check=True)
+    """Atomically copies `src` to `dst` via a sibling temp file + os.replace to avoid corrupting mmap'd binaries."""
+    if os.path.isdir(dst):
+        dst = os.path.join(dst, os.path.basename(src))
+    dst_dir = os.path.dirname(os.path.abspath(dst))
+    os.makedirs(dst_dir, exist_ok=True)
+    tmp_dst = os.path.join(dst_dir, f".{os.path.basename(dst)}.tmp.{os.getpid()}")
+    try:
+        subprocess.run(["cp", "-f", src, tmp_dst], check=True)
+        os.replace(tmp_dst, dst)
+    except Exception:
+        if os.path.exists(tmp_dst):
+            try:
+                os.remove(tmp_dst)
+            except OSError:
+                pass
+        raise
 
 # --- Chromium milestone awareness -------------------------------------------
 # M141: the chrome://flags#use-angle entry was removed on macOS
@@ -232,20 +251,114 @@ class BaseBrowserPatcher:
             print(f"[*] Backing up original launcher to {launcher_bak}...")
             safe_copy(launcher_dst, launcher_bak)
 
+    def get_running_versions(self):
+        """Returns the set of framework versions currently loaded by active processes of this browser."""
+        running_versions = set()
+        if not self.app_path or not self.framework_name:
+            return running_versions
+        prefixes = {self.app_path.rstrip("/") + "/"}
+        try:
+            prefixes.add(os.path.realpath(self.app_path).rstrip("/") + "/")
+        except OSError:
+            pass
+        ver_re = re.compile(re.escape(self.framework_name) + r"/Versions/([^/]+)/")
+        try:
+            res = subprocess.run(["ps", "-axo", "pid,args"], capture_output=True, text=True, timeout=5)
+            if res.returncode != 0:
+                return running_versions
+            my_pid = str(os.getpid())
+            for line in res.stdout.splitlines():
+                parts = line.strip().split(None, 1)
+                if len(parts) < 2:
+                    continue
+                pid_str, cmdline = parts
+                if pid_str == my_pid or "--dump-dom" in cmdline:
+                    continue
+                if any(cmdline.startswith(pref) for pref in prefixes):
+                    m = ver_re.search(cmdline)
+                    if m and m.group(1) != "Current":
+                        running_versions.add(m.group(1))
+        except Exception:
+            pass
+        return running_versions
+
+    def check_write_permissions(self, version):
+        """Pre-flight check ensuring the target app bundle is writable before creating backups or mutating files."""
+        ver_dir = self.get_ver_dir(version)
+        paths_to_check = [
+            self.app_path,
+            os.path.join(self.app_path, "Contents"),
+            os.path.join(self.app_path, "Contents/MacOS"),
+            self.framework_dir,
+            self.versions_dir,
+            ver_dir,
+            os.path.join(ver_dir, "Libraries"),
+            self.get_framework_bin(version),
+            self.get_launcher_dst(),
+        ]
+        for p in paths_to_check:
+            if os.path.exists(p) and not os.access(p, os.W_OK):
+                try:
+                    owner = pwd.getpwuid(os.stat(p).st_uid).pw_name
+                except Exception:
+                    owner = str(os.stat(p).st_uid)
+                try:
+                    current_user = pwd.getpwuid(os.getuid()).pw_name
+                except Exception:
+                    current_user = os.environ.get("USER", "current user")
+                print(f"[!] Permission denied: '{p}' is owned by '{owner}' and is not writable by '{current_user}'.")
+                print(f"    To grant ownership so the patcher can modify and code-sign {self.name}, run:")
+                print(f'        sudo chown -R $(whoami) "{self.app_path}"')
+                print("    (Note: Do NOT run 'sudo python3 patch.py' directly, because the LocalCodeSigner")
+                print("     certificate lives in your user login keychain.)")
+                return False
+        return True
+
     def clean_obsolete_versions(self, version):
-        """Moves obsolete version directories out of the framework bundle to prevent codesign verification failures."""
+        """Moves obsolete version directories out of the framework bundle to prevent codesign verification failures.
+        Preserves any version directory currently in use by a running browser process so active tabs do not break.
+        """
         backup_dir = self.get_backup_dir(version)
         os.makedirs(backup_dir, exist_ok=True)
+        running_versions = self.get_running_versions()
         if os.path.isdir(self.versions_dir):
             for d in os.listdir(self.versions_dir):
                 d_path = os.path.join(self.versions_dir, d)
                 if os.path.isdir(d_path) and not d.startswith(".") and d != "Current" and d != version:
+                    if d in running_versions:
+                        print(f"[*] Preserving version {d} in bundle (currently in use by running {self.name}).")
+                        continue
                     print(f"[*] Moving obsolete version {d} out of bundle to {backup_dir}...")
                     dst_obsolete = os.path.join(backup_dir, d)
                     if os.path.exists(dst_obsolete):
-                        run(f'mv "{d_path}" "{dst_obsolete}_{int(time.time())}"')
+                        run(["mv", d_path, f"{dst_obsolete}_{int(time.time())}"])
                     else:
-                        run(f'mv "{d_path}" "{backup_dir}/"')
+                        run(["mv", d_path, f"{backup_dir}/"])
+
+    def prune_old_backups(self, current_version, keep=2):
+        """Retains only the most recent `keep` version backup directories to prevent unbounded disk usage."""
+        if not self.backup_base_dir or keep < 1:
+            return
+        base_dir = os.path.expanduser(self.backup_base_dir)
+        if not os.path.isdir(base_dir):
+            return
+        current_name = os.path.basename(os.path.normpath(self.get_backup_dir(current_version)))
+        other_dirs = []
+        for entry in os.listdir(base_dir):
+            entry_path = os.path.join(base_dir, entry)
+            if os.path.isdir(entry_path) and not entry.startswith(".") and entry != current_name:
+                try:
+                    mtime = os.path.getmtime(entry_path)
+                except OSError:
+                    mtime = 0
+                other_dirs.append((mtime, entry, entry_path))
+        other_dirs.sort(key=lambda x: x[0], reverse=True)
+        for _, name, path in other_dirs[max(0, keep - 1):]:
+            print(f"[*] Pruning old backup {name} from {base_dir}...")
+            try:
+                shutil.rmtree(path)
+            except Exception as e:
+                print(f"[!] Warning: Could not remove old backup {path}: {e}")
 
     def restore(self, version):
         backup_dir = self.get_backup_dir(version)
@@ -375,23 +488,39 @@ class BaseBrowserPatcher:
 
         return milestone
 
-    def apply_binary_patches(self, version):
+    def prepare_binary_patches(self, version):
+        """Validates and applies all binary patches in memory without mutating the app bundle on disk.
+
+        Returns the patched bytearray if all patches succeed, or None if any pattern fails.
+        """
         fw_bin = self.get_framework_bin(version)
         backup_dir = self.get_backup_dir(version)
         fw_bak = os.path.join(backup_dir, f"{self.framework_binary_name}.original")
 
-        if os.path.exists(fw_bak):
-            print(f"[*] Resetting to clean original {self.name} framework from backup before patching...")
-            safe_copy(fw_bak, fw_bin)
-
         if not os.path.exists(fw_bin):
             print(f"[!] Error: Framework binary not found at {fw_bin}")
-            return False
+            return None
+
+        # Use clean backup as read-only source when it matches this installed build
+        # (re-signing with LocalCodeSigner can alter the trailing LC_CODE_SIGNATURE size by a few KB)
+        source_bin = fw_bin
+        if os.path.exists(fw_bak):
+            try:
+                size_diff = abs(os.path.getsize(fw_bak) - os.path.getsize(fw_bin))
+                already_local_signed = False
+                if size_diff > 0 and size_diff < 65536:
+                    cs_res = subprocess.run(["codesign", "-dv", fw_bin], capture_output=True, text=True)
+                    already_local_signed = f"Authority={self.certificate_name}" in (cs_res.stderr + cs_res.stdout)
+                if size_diff == 0 or already_local_signed:
+                    print(f"[*] Reading clean original {self.name} framework from backup before patching...")
+                    source_bin = fw_bak
+            except OSError:
+                pass
 
         milestone = self.report_milestone_context(version)
 
-        print(f"[*] Reading {self.name} framework binary ({os.path.getsize(fw_bin):,} bytes)...")
-        with open(fw_bin, "rb") as f:
+        print(f"[*] Reading {self.name} framework binary ({os.path.getsize(source_bin):,} bytes)...")
+        with open(source_bin, "rb") as f:
             data = bytearray(f.read())
 
         patches = self.get_patches(version)
@@ -421,13 +550,37 @@ class BaseBrowserPatcher:
                     applied_count += 1
 
         if applied_count == len(patches):
-            print(f"[+] All {applied_count}/{len(patches)} patches confirmed/applied. Writing updated binary...")
-            with open(fw_bin, "wb") as f:
-                f.write(data)
-            return True
+            print(f"[+] All {applied_count}/{len(patches)} patches confirmed/applied.")
+            return data
         else:
             print(f"[!] Patching incomplete ({applied_count}/{len(patches)} applied).")
+            return None
+
+    def _write_binary_atomically(self, version, data):
+        """Writes patched framework bytes via sibling temp file + os.replace to avoid SIGBUS on mmap'd binaries."""
+        fw_bin = self.get_framework_bin(version)
+        ver_dir = os.path.dirname(os.path.abspath(fw_bin))
+        tmp_path = os.path.join(ver_dir, f".{self.framework_binary_name}.new.{os.getpid()}")
+        print(f"[*] Writing updated {self.name} framework binary atomically...")
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(data)
+            shutil.copymode(fw_bin, tmp_path)
+            os.replace(tmp_path, fw_bin)
+        except Exception:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            raise
+
+    def apply_binary_patches(self, version):
+        data = self.prepare_binary_patches(version)
+        if data is None:
             return False
+        self._write_binary_atomically(version, data)
+        return True
 
     def install_launcher(self, version):
         launcher_src_path = os.path.join(self.repo_root, self.launcher_src)
@@ -453,8 +606,19 @@ class BaseBrowserPatcher:
         fw_bin = self.get_framework_bin(version)
         launcher_dst = self.get_launcher_dst()
 
+        running_versions = self.get_running_versions()
+        preserved_running_old = [
+            d for d in (os.listdir(self.versions_dir) if os.path.isdir(self.versions_dir) else [])
+            if d != version and d != "Current" and not d.startswith(".") and d in running_versions
+        ]
+
         print(f"[*] Stripping quarantine and extended attributes from {self.name}...")
-        run(f'xattr -cr "{self.app_path}"')
+        if preserved_running_old:
+            # Avoid touching preserved running version directories inside Versions/
+            run(["xattr", "-cr", ver_dir])
+            run(["xattr", "-cr", launcher_dst])
+        else:
+            run(["xattr", "-cr", self.app_path])
 
         print(f"[*] Re-signing {self.name} components with {self.certificate_name}...")
 
@@ -463,7 +627,7 @@ class BaseBrowserPatcher:
         if os.path.isdir(lib_dir):
             for f in os.listdir(lib_dir):
                 if f.endswith(".dylib"):
-                    run(f'codesign --force --sign "{self.certificate_name}" "{os.path.join(lib_dir, f)}"')
+                    run(["codesign", "--force", "--sign", self.certificate_name, os.path.join(lib_dir, f)])
 
         # 2. Sign Helpers
         helpers_dir = os.path.join(ver_dir, "Helpers")
@@ -471,16 +635,20 @@ class BaseBrowserPatcher:
             for h in os.listdir(helpers_dir):
                 h_path = os.path.join(helpers_dir, h)
                 if h.endswith(".app"):
-                    run(f'codesign --force --deep --sign "{self.certificate_name}" "{h_path}"')
+                    run(["codesign", "--force", "--deep", "--sign", self.certificate_name, h_path])
                 elif os.path.isfile(h_path) and os.access(h_path, os.X_OK):
-                    run(f'codesign --force --sign "{self.certificate_name}" "{h_path}"')
+                    run(["codesign", "--force", "--sign", self.certificate_name, h_path])
 
         # 3. Sign framework binary, version dir, framework bundle, launcher, and main app
-        run(f'codesign --force --sign "{self.certificate_name}" "{fw_bin}"')
-        run(f'codesign --force --sign "{self.certificate_name}" "{ver_dir}"')
-        run(f'codesign --force --sign "{self.certificate_name}" "{self.framework_dir}"')
-        run(f'codesign --force --sign "{self.certificate_name}" "{launcher_dst}"')
-        run(f'codesign --force --deep --sign "{self.certificate_name}" "{self.app_path}"')
+        run(["codesign", "--force", "--sign", self.certificate_name, fw_bin])
+        run(["codesign", "--force", "--sign", self.certificate_name, ver_dir])
+        run(["codesign", "--force", "--sign", self.certificate_name, self.framework_dir])
+        run(["codesign", "--force", "--sign", self.certificate_name, launcher_dst])
+        if preserved_running_old:
+            # Sign top-level app bundle without --deep so actively running older version(s) stay untouched
+            run(["codesign", "--force", "--sign", self.certificate_name, self.app_path])
+        else:
+            run(["codesign", "--force", "--deep", "--sign", self.certificate_name, self.app_path])
 
     def verify_signature(self):
         print(f"[*] Verifying {self.name} code signature...")
@@ -615,14 +783,16 @@ class BaseBrowserPatcher:
             ("kTCCServiceMicrophone", "Microphone")
         ]
 
+        conn = None
         try:
             conn = sqlite3.connect(tcc_db)
             cur = conn.cursor()
+            app_prefix_pattern = f"{self.app_path.rstrip('/')}/%"
             for service_id, label in services:
-                # Remove any existing path-based or bundle-id entries to prevent duplicate toggles in System Settings
+                # Remove only existing bundle-id or path entries belonging to this exact app bundle
                 cur.execute(
                     "DELETE FROM access WHERE service = ? AND (client = ? OR client = ? OR client LIKE ?)",
-                    (service_id, bundle_id, self.app_path, f"%{self.name}%")
+                    (service_id, bundle_id, self.app_path, app_prefix_pattern)
                 )
                 cur.execute("""
                     INSERT OR REPLACE INTO access (
@@ -630,13 +800,18 @@ class BaseBrowserPatcher:
                     ) VALUES (?, ?, 0, 2, 4, 1, ?, 'UNUSED')
                 """, (service_id, bundle_id, sqlite3.Binary(csreq_blob)))
             conn.commit()
-            conn.close()
             print(f"[+] Successfully granted Camera & Microphone permissions for {self.name} ({bundle_id}).")
         except Exception as e:
             print(f"[!] Warning: Failed to update TCC database: {e}")
             print("    (If macOS blocked access, grant Terminal Full Disk Access in System Settings > Privacy & Security).")
             print(f"    You can restore your TCC database anytime from: {bak_path}")
             return False
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         # 5. Refresh macOS privacy daemon (tccd)
         try:
@@ -724,6 +899,10 @@ class BaseBrowserPatcher:
             ok = self.grant_privacy_permissions(auto_yes=auto_yes)
             return 0 if ok else 1
 
+        if auto and not check_only and not restore_mode and not test_gpu:
+            # Allow background updaters a moment to finish swapping Current symlink / files
+            time.sleep(3)
+
         current_ver = self.get_current_version()
         if not current_ver:
             print(f"[!] Error: Could not determine {self.name} version.")
@@ -734,6 +913,8 @@ class BaseBrowserPatcher:
         print(f"{'='*60}")
 
         if restore_mode:
+            if not self.check_write_permissions(current_ver):
+                return 1
             success = self.restore(current_ver)
             return 0 if success else 1
 
@@ -765,46 +946,59 @@ class BaseBrowserPatcher:
                 print(f"[-] {self.name} {current_ver} is NOT patched.")
             return 0 if is_patched else 1
 
-        if auto:
-            time.sleep(3)
-            current_ver = self.get_current_version()
-
         if not force:
             if self.is_already_patched(current_ver):
                 print(f"[+] {self.name} {current_ver} is ALREADY patched. Nothing to do (use --force to re-apply).")
                 return 0
             print(f"[!] Unpatched {self.name} detected ({current_ver})! Starting patch...")
 
-        # 0. Ensure Code Signing Certificate
-        self.ensure_certificate()
+        # 0. Guard against disrupting actively running processes of the same target version in background mode
+        running_versions = self.get_running_versions()
+        if current_ver in running_versions:
+            if auto:
+                print(f"[*] {self.name} {current_ver} is currently running. Skipping background patch to avoid disrupting active tabs.")
+                print(f"    Quit {self.name} (Cmd+Q) and re-run 'python3 patch.py {self.slug}' when convenient.")
+                return 0
+            else:
+                print(f"[!] Warning: {self.name} {current_ver} is currently running. Quit and relaunch (Cmd+Q) after patching.")
 
-        # 1. Backup
-        self.backup_original(current_ver)
-
-        # 2. Pre-patch hook
-        self.pre_patch_hook(current_ver)
-
-        # 3. Binary patching
-        ok = self.apply_binary_patches(current_ver)
-        if not ok:
-            print(f"[!] Binary patching failed for {self.name}. Rolling back to backup...")
-            self.restore(current_ver)
+        # 1. Pre-flight write permission check before creating backups or modifying bundle
+        if not self.check_write_permissions(current_ver):
             return 1
 
-        # 4. Install launcher
+        # 2. Validate & prepare all binary patches in memory BEFORE mutating anything on disk
+        patched_data = self.prepare_binary_patches(current_ver)
+        if patched_data is None:
+            print(f"[!] Aborting before modifying {self.name} (original app bundle and signature left untouched).")
+            return 1
+
+        # 3. Ensure Code Signing Certificate
+        self.ensure_certificate()
+
+        # 4. Backup original binaries
+        self.backup_original(current_ver)
+
+        # 5. Pre-patch hook (ANGLE dylibs)
+        self.pre_patch_hook(current_ver)
+
+        # 6. Write patched framework binary atomically
+        self._write_binary_atomically(current_ver, patched_data)
+
+        # 7. Install launcher
         if not self.install_launcher(current_ver):
             print(f"[!] Launcher installation failed for {self.name}. Rolling back...")
             self.restore(current_ver)
             return 1
 
-        # 5. Post-patch hook
+        # 8. Post-patch hook (preserves any older running version in Versions/)
         self.post_patch_hook(current_ver)
 
-        # 6. Codesign
+        # 9. Codesign
         self.codesign(current_ver)
 
-        # 7. Verification
+        # 10. Verification & old backup pruning
         sig_ok = self.verify_signature()
+        self.prune_old_backups(current_ver, keep=2)
 
         if sig_ok:
             if notify_user or auto:
