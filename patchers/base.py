@@ -592,7 +592,13 @@ class BaseBrowserPatcher:
 
         print(f"[*] Compiling native C launcher for {self.name}...")
         tmp_launcher = launcher_dst + ".new"
-        res = run(f'clang -O2 "{launcher_src_path}" -o "{tmp_launcher}"')
+        cmd = ["clang", "-O2", launcher_src_path, "-o", tmp_launcher]
+        if self.launcher_src == "launcher_main.c":
+            cmd.extend([
+                f'-DFRAMEWORK_NAME="{self.framework_name}"',
+                f'-DFRAMEWORK_BIN="{self.framework_binary_name}"',
+            ])
+        res = run(cmd)
         if res.returncode == 0:
             os.replace(tmp_launcher, launcher_dst)
             print(f"[+] {self.name} launcher installed successfully!")

@@ -22,7 +22,7 @@ class VivaldiPatcher(BaseBrowserPatcher):
     framework_name = "Vivaldi Framework.framework"
     framework_binary_name = "Vivaldi Framework"
     launcher_name = "Vivaldi"
-    launcher_src = "vivaldi_main.c"
+    launcher_src = "launcher_main.c"
     backup_base_dir = "~/.vivaldi_macpro_backups"
 
     def is_already_patched(self, version):

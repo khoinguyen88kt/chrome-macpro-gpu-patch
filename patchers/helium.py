@@ -2,29 +2,26 @@
 """
 Helium Browser Patcher subclass for legacy Mac GPUs.
 Helium is an open-source privacy Chromium fork (imputnet/helium-macos).
-Implements dynamic regex wildcard pattern scanning, ANGLE dylib injection,
-and native C launcher.
 """
 import os
 import plistlib
-import re
-import struct
-import subprocess
-from .base import BaseBrowserPatcher, safe_copy, run
+from .base import safe_copy
+from .chromium import ChromiumPatcher
 
-class HeliumPatcher(BaseBrowserPatcher):
+
+class HeliumPatcher(ChromiumPatcher):
     name = "Helium"
     slug = "helium"
     possible_app_paths = [
         "/Applications/Helium.app",
-        os.path.expanduser("~/Applications/Helium.app")
+        os.path.expanduser("~/Applications/Helium.app"),
     ]
     bundle_id = "net.imput.helium"
     app_bundle_name = "Helium.app"
     framework_name = "Helium Framework.framework"
     framework_binary_name = "Helium Framework"
     launcher_name = "Helium"
-    launcher_src = "helium_main.c"
+    launcher_src = "launcher_main.c"
     backup_base_dir = "~/.helium_macpro_backups"
 
     def get_app_bundle_version(self):
@@ -60,7 +57,6 @@ class HeliumPatcher(BaseBrowserPatcher):
 
         if os.path.exists(fw_bin):
             if not os.path.exists(fw_bak):
-                # Check if a clean backup matching app_ver exists in legacy backup dir
                 legacy_dir = os.path.join(os.path.expanduser(self.backup_base_dir), version)
                 legacy_bak = os.path.join(legacy_dir, f"{self.framework_binary_name}.original")
                 migrated = False
@@ -84,7 +80,6 @@ class HeliumPatcher(BaseBrowserPatcher):
                         print(f"[*] Warning: Helium framework is already patched, saving current state to {fw_bak}...")
                         safe_copy(fw_bin, fw_bak)
             else:
-                # If backup exists but installed fw_bin is an unpatched update, update the backup
                 if not is_patched:
                     fw_bin_size = os.path.getsize(fw_bin)
                     fw_bak_size = os.path.getsize(fw_bak)
@@ -106,18 +101,17 @@ class HeliumPatcher(BaseBrowserPatcher):
                 with open(fw_bin, "rb") as f:
                     data = f.read()
                     if app_ver.encode("ascii") + b"\x00" not in data:
-                        print(f"\n[!] WARNING: Helium version mismatch detected!")
+                        print("\n[!] WARNING: Helium version mismatch detected!")
                         print(f"    Helium.app Info.plist version is '{app_ver}', but '{self.framework_binary_name}'")
                         print(f"    does not contain '{app_ver}' (likely an older build was restored from backup).")
-                        print(f"    This causes Settings (helium://settings) to crash with RESULT_CODE_KILLED_BAD_MESSAGE.")
+                        print("    This causes Settings (helium://settings) to crash with RESULT_CODE_KILLED_BAD_MESSAGE.")
                         print(f"    To fix: Please download and reinstall Helium {app_ver} from:")
-                        print(f"    https://github.com/imputnet/helium-macos/releases")
-                        print(f"    and run this patcher again.\n")
+                        print("    https://github.com/imputnet/helium-macos/releases")
+                        print("    and run this patcher again.\n")
             except Exception:
                 pass
 
     def restore(self, version):
-        # Fallback to legacy unversioned backup if versioned backup does not exist
         backup_dir = self.get_backup_dir(version)
         fw_bak = os.path.join(backup_dir, f"{self.framework_binary_name}.original")
         if not os.path.exists(fw_bak):
@@ -131,220 +125,3 @@ class HeliumPatcher(BaseBrowserPatcher):
                 if os.path.exists(legacy_launcher):
                     safe_copy(legacy_launcher, launcher_bak)
         return super().restore(version)
-
-    def is_already_patched(self, version):
-        ver_dir = self.get_ver_dir(version)
-        fw_bin = self.get_framework_bin(version)
-        lib_egl = os.path.join(ver_dir, "Libraries/libEGL.dylib")
-        launcher_dst = self.get_launcher_dst()
-        gpu_helper = os.path.join(ver_dir, "Helpers/Helium Helper (GPU).app")
-
-        if not os.path.exists(fw_bin) or not os.path.exists(lib_egl) or not os.path.exists(launcher_dst) or not os.path.exists(gpu_helper):
-            return False
-
-        # 1. Check if Launcher is compiled and signed with LocalCodeSigner
-        if not self.is_launcher_patched(launcher_dst):
-            return False
-
-        # 2. Check if GPU Helper is signed with LocalCodeSigner
-        res = subprocess.run(["codesign", "-dvvv", gpu_helper], capture_output=True, text=True)
-        if f"Authority={self.certificate_name}" not in res.stderr and f"Authority={self.certificate_name}" not in res.stdout:
-            return False
-
-        # 3. Check if GetAllowedGLImplementation bypass is applied
-        try:
-            with open(fw_bin, "rb") as f:
-                data = f.read()
-                if bytes.fromhex("84 c0 eb 06 90 90 90 90 90 90 48 8b 45 b0") not in data:
-                    return False
-        except Exception:
-            return False
-
-        return True
-
-    def get_patches(self, version):
-        # Patch 1: GetAllowedGLImplementation (Force Allow OpenGL on macOS)
-        def patch_p1_force_allowed_gl(data: bytearray):
-            p1_re = re.compile(rb"\x84\xc0\x74\x0f\x80\x7d\xb8\x00\x74\xcd\x48\x8b\x45\xb0")
-            m = p1_re.search(data)
-            if m:
-                data[m.start()+2 : m.start()+10] = bytes.fromhex("eb 06 90 90 90 90 90 90")
-                print(f"[+] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) applied successfully at 0x{m.start():x}!")
-                return True
-            if data.find(bytes.fromhex("84 c0 eb 06 90 90 90 90 90 90 48 8b 45 b0")) != -1:
-                print("[*] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) is already applied.")
-                return True
-            p1_dyn = re.compile(rb"\x84\xc0\x74(.)\x80\x7d(.)\x00\x74(.)\x48\x8b\x45(.)")
-            m2 = p1_dyn.search(data)
-            if m2:
-                data[m2.start()+2 : m2.start()+10] = bytes.fromhex("eb 06 90 90 90 90 90 90")
-                print(f"[+] Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL) applied dynamically at 0x{m2.start():x}!")
-                return True
-            print("[!] Warning: Patch 1 (GetAllowedGLImplementation) pattern not found!")
-            return False
-
-        def patch_p2_display_params(data: bytearray):
-            p2_re = re.compile(rb"\x84\xc0\x0f\x85(.{4})\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00", re.DOTALL)
-            m = p2_re.search(data)
-            if m:
-                target_disp = struct.unpack("<i", m.group(1))[0]
-                new_disp = target_disp + 1
-                disp_bytes = struct.pack("<i", new_disp)
-                patch = b"\xe9" + disp_bytes + b"\x90"
-                data[m.start()+2:m.start()+8] = patch
-                print(f"[+] Patch 2 (GetDisplayInitializationParams) applied successfully at 0x{m.start():x}!")
-                return True
-            elif re.search(rb"\x84\xc0\xe9.{4}\x90\x48\xb8\x09\x00\x00\x00\x03\x00\x00\x00", data, re.DOTALL):
-                print("[*] Patch 2 (GetDisplayInitializationParams) is already applied.")
-                return True
-            print("[!] Warning: Patch 2 (GetDisplayInitializationParams) pattern not found!")
-            return False
-
-        def patch_p3_gpu_mode(data: bytearray):
-            p3_anchor = re.compile(rb"\x84\xc0(\x0f\x84.{4}|\x74.)(.{0,16})\xc7\x45(.)\x03\x00\x00\x00\x48\x8b", re.DOTALL)
-            m = p3_anchor.search(data)
-            if m:
-                jump_pos = m.start() + 2
-                jump_len = len(m.group(1))
-                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
-                val_pos = jump_pos + jump_len + len(m.group(2)) + 3
-                data[val_pos] = 0x01
-                print(f"[+] Patch 3 (GpuMode fallback to HARDWARE_GL) applied successfully at {hex(jump_pos)}!")
-                return True
-            p3_applied_re = re.compile(rb"\x84\xc0(?:\x90{2}|\x90{6})(.{0,16})\xc7\x45.\x01\x00\x00\x00\x48\x8b", re.DOTALL)
-            if p3_applied_re.search(data):
-                print("[*] Patch 3 (GpuMode fallback to HARDWARE_GL) is already applied.")
-                return True
-            print("[!] Warning: Patch 3 (GpuMode fallback to HARDWARE_GL) pattern not found!")
-            return False
-
-        def patch_p4_seatbelt(data: bytearray):
-            p4_re = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", re.DOTALL)
-            m = p4_re.search(data)
-            if m:
-                jump_pos = m.start() + len(m.group(1))
-                jump_len = len(m.group(2))
-                data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
-                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at 0x{jump_pos:x}!")
-                return True
-            elif re.search(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})(?:\x48\x8b\xbb\x88\x00\x00\x00|\x48\x8b)", data, re.DOTALL):
-                print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
-                return True
-            print("[!] Warning: Patch 4 (Seatbelt IsSandboxed) pattern not found!")
-            return False
-
-        def patch_p5_iosurface_factory(data: bytearray):
-            p5_re = re.compile(rb"(\x41\x8b[\x40-\x7f]\x20|\x44\x8b[\x40-\x7f]\x20)(?:\x45\x8b[\x40-\x7f]\x38|\x41\x8b[\x40-\x7f]\x38)(.{0,20}\xc7\x04\x24\x01\x00\x00\x00)")
-            m = p5_re.search(data)
-            if m:
-                first_mov = m.group(1)
-                tail = m.group(2)
-                tail_patched = tail.replace(b"\xc7\x04\x24\x01\x00\x00\x00", b"\x89\x04\x24\x66\x90")
-                replacement = first_mov + b"\x41\xb8\xf5\x84\x00\x00" + tail_patched
-                pad = len(m.group(0)) - len(replacement)
-                if pad >= 0:
-                    replacement += b"\x90" * pad
-                    data[m.start() : m.start() + len(m.group(0))] = replacement
-                    print(f"[+] Patch 5 (IOSurface Factory Target 0x84f5) applied successfully at 0x{m.start():x}!")
-                    return True
-            elif re.search(rb"\x41\xb8\xf5\x84\x00\x00.{0,30}\x89\x04\x24\x66\x90", data, re.DOTALL):
-                print("[*] Patch 5 (IOSurface Factory Target 0x84f5) is already applied.")
-                return True
-            print("[!] Warning: Patch 5 (IOSurface Factory Target 0x84f5) pattern not found!")
-            return False
-
-        def patch_p6_validate_target(data: bytearray):
-            # Semantic body anchor for ScopedEGLSurfaceIOSurface::ValidateTarget (M153-M158+):
-            # Stack-frame-agnostic (handles Clang changing sub rsp 0x130 -> 0x138 in M158+)
-            # and anchored to unique GL/EGL constants: 0x0de1 (GL_TEXTURE_2D),
-            # 0x305f (EGL_TEXTURE_2D), and 0x84f5 (GL_TEXTURE_RECTANGLE_ARB).
-            p6_body = (
-                rb"(?:\x41[\x50-\x57]|[\x50-\x57]){0,6}"
-                rb"(?:\x48\x83\xec.|\x48\x81\xec.{4})"
-                rb".{0,12}(?:\x41)?\x81[\xf8-\xff]\xe1\x0d\x00\x00"
-                rb".{1,24}\x5f\x30\x00\x00"
-                rb".{1,64}\xf5\x84\x00\x00"
-            )
-
-            # Check already applied first (4-byte prologue patch, legacy 20-byte NOP patch, or pre-153 patch)
-            p6_153_pat = bytes.fromhex("b0 01 c3 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90")
-            p6_pre_pat = bytes.fromhex("b0 01 c3 90 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            if (
-                re.search(rb"\xb0\x01\xc3\x90" + p6_body, data, re.DOTALL)
-                or re.search(re.escape(p6_153_pat) + rb".{1,24}\x5f\x30\x00\x00", data, re.DOTALL)
-                or data.find(p6_pre_pat) != -1
-                or re.search(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", data, re.DOTALL)
-            ):
-                print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
-                return True
-
-            # 1. Dynamic stack-frame-agnostic pattern for Chromium M153-M158+
-            # Replace only the 4-byte prologue (push rbp; mov rbp, rsp -> mov al, 1; ret; nop)
-            p6_re = re.compile(rb"\x55\x48\x89\xe5" + p6_body, re.DOTALL)
-            m = p6_re.search(data)
-            if m:
-                offset = m.start()
-                data[offset : offset + 4] = b"\xb0\x01\xc3\x90"
-                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at 0x{offset:x}!")
-                return True
-
-            # 2. Pre-153 static pattern
-            p6_pre_orig = bytes.fromhex("55 48 89 e5 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            idx = data.find(p6_pre_orig)
-            if idx != -1:
-                data[idx : idx + 4] = b"\xb0\x01\xc3\x90"
-                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at 0x{idx:x}!")
-                return True
-
-            print("[!] Warning: Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) pattern not found!")
-            return False
-
-        def patch_p7_iosurface_backing(data: bytearray):
-            p7_orig_re = re.compile(rb"\x8b\x45(.)\x89\x83(..\x00\x00)\x8b\x45(.)\x88\x83(..\x00\x00)\x45\x31\xf6\x44\x89\xb3(..\x00\x00)(\x66\xc7\x83(..\x00\x00)\x00\x00|\x66\x44\x89\xb3(..\x00\x00))", re.DOTALL)
-            m = p7_orig_re.search(data)
-            if m:
-                reg1, off1, reg2, off2, off3 = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
-                off4 = m.group(7) if m.group(7) else m.group(8)
-                rep = (
-                    bytes.fromhex("c7 83") + off1 + bytes.fromhex("f5 84 00 00 8a 45") +
-                    reg2 + bytes.fromhex("88 83") + off2 +
-                    bytes.fromhex("45 31 f6 44 89 b3") + off3 +
-                    bytes.fromhex("66 44 89 b3") + off4
-                )
-                data[m.start():m.end()] = rep
-                print(f"[+] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) applied successfully at 0x{m.start():x}!")
-                return True
-            p7_applied_re = re.compile(rb"\xc7\x83..\x00\x00\xf5\x84\x00\x00\x8a\x45(.)\x88\x83..\x00\x00\x45\x31\xf6\x44\x89\xb3..\x00\x00\x66\x44\x89\xb3..\x00\x00", re.DOTALL)
-            if p7_applied_re.search(data):
-                print("[*] Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) is already applied.")
-                return True
-            print("[!] Warning: Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5) pattern not found!")
-            return False
-
-        def patch_p8_desktop_capture(data: bytearray):
-            p8_applied = re.compile(rb"\x31\xc0\xc3(?:\xe5|\x90)(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
-            if p8_applied.search(data):
-                print("[*] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) is already applied.")
-                return True
-
-            p8_orig = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x83\x3f\x01\x75.(?:.|\n){1,6}\x48\x83[\x78-\x7f]\x08\xfd", re.DOTALL)
-            m = p8_orig.search(data)
-            if m:
-                offset = m.start()
-                data[offset : offset + 3] = b"\x31\xc0\xc3"
-                print(f"[+] Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) applied successfully at 0x{offset:x}!")
-                return True
-
-            print("[!] Warning: Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer) pattern not found!")
-            return False
-
-        return [
-            ("Patch 1 (GetAllowedGLImplementation - Force Allow OpenGL)", patch_p1_force_allowed_gl),
-            ("Patch 2 (GetDisplayInitializationParams)", patch_p2_display_params),
-            ("Patch 3 (GpuMode fallback to HARDWARE_GL)", patch_p3_gpu_mode),
-            ("Patch 4 (Seatbelt IsSandboxed)", patch_p4_seatbelt),
-            ("Patch 5 (IOSurfaceImageBackingFactory target 0x84f5)", patch_p5_iosurface_factory),
-            ("Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget)", patch_p6_validate_target),
-            ("Patch 7 (IOSurfaceImageBacking gl_target_ = 0x84f5)", patch_p7_iosurface_backing),
-            ("Patch 8 (CreateDesktopCaptureDeviceMac fallback to CPU capturer)", patch_p8_desktop_capture),
-        ]
