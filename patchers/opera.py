@@ -22,7 +22,7 @@ class OperaPatcher(BaseBrowserPatcher):
     framework_name = "Opera Framework.framework"
     framework_binary_name = "Opera Framework"
     launcher_name = "Opera"
-    launcher_src = "opera_main.c"
+    launcher_src = "launcher_main.c"
     backup_base_dir = "~/.opera_macpro_backups"
 
     def is_already_patched(self, version):

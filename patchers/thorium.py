@@ -24,7 +24,7 @@ class ThoriumPatcher(BaseBrowserPatcher):
     framework_name = "Thorium Framework.framework"
     framework_binary_name = "Thorium Framework"
     launcher_name = "Thorium"
-    launcher_src = "thorium_main.c"
+    launcher_src = "launcher_main.c"
     backup_base_dir = "~/.thorium_macpro_backups"
 
     def is_already_patched(self, version):
