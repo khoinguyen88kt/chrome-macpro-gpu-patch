@@ -180,7 +180,7 @@ class BravePatcher(BaseBrowserPatcher):
             if p4_applied.search(data) or data.find(b"\x85\xc0\x90\x90\x90\x90\x90\x90\x48\x8b\xbb\x88\x00\x00\x00") != -1:
                 print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
                 return True
-            # 2. Broader Seatbelt check in GpuMain (any register)
+            # 2. Broader Seatbelt check in GpuMain (any register / struct offset)
             p4_re2 = re.compile(rb"(\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0)(\x0f\x84.{4}|\x74.)(\x48\x8b)", re.DOTALL)
             m2 = p4_re2.search(data)
             if m2:
@@ -189,15 +189,8 @@ class BravePatcher(BaseBrowserPatcher):
                 data[jump_pos : jump_pos + jump_len] = b"\x90" * jump_len
                 print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied dynamically at {hex(jump_pos)}!")
                 return True
-            # 3. Pre-153 Seatbelt check pattern (\xe8....\x85\xc0\x0f\x84....)
-            p4_re3 = re.compile(rb"\xe8....\x85\xc0\x0f\x84(....)", re.DOTALL)
-            m3 = p4_re3.search(data)
-            if m3:
-                offset = m3.start() + 7
-                data[offset:offset+6] = b"\x90" * 6
-                print(f"[+] Patch 4 (Seatbelt IsSandboxed) applied successfully at {hex(offset)}!")
-                return True
-            if re.search(rb"\xe8....\x85\xc0\x90\x90\x90\x90\x90\x90", data, re.DOTALL):
+            p4_applied2 = re.compile(rb"\x89\xc7\x31\xf6\x31\xd2\x31\xc0\xe8.{4}\x85\xc0(?:\x90{2}|\x90{6})\x48\x8b", re.DOTALL)
+            if p4_applied2.search(data):
                 print("[*] Patch 4 (Seatbelt IsSandboxed) is already applied.")
                 return True
             print("[!] Warning: Patch 4 (Seatbelt IsSandboxed) pattern not found!")
@@ -219,39 +212,45 @@ class BravePatcher(BaseBrowserPatcher):
             return False
 
         def patch_p6_validate_target(data: bytearray):
-            # Check already applied first (full 20-byte NOP pattern, pre-153 pattern, or anchored frame)
+            # Semantic body anchor for ScopedEGLSurfaceIOSurface::ValidateTarget (M153-M158+):
+            # Stack-frame-agnostic (handles Clang changing sub rsp 0x130 -> 0x138 in M158+)
+            # and anchored to unique GL/EGL constants: 0x0de1 (GL_TEXTURE_2D),
+            # 0x305f (EGL_TEXTURE_2D), and 0x84f5 (GL_TEXTURE_RECTANGLE_ARB).
+            p6_body = (
+                rb"(?:\x41[\x50-\x57]|[\x50-\x57]){0,6}"
+                rb"(?:\x48\x83\xec.|\x48\x81\xec.{4})"
+                rb".{0,12}(?:\x41)?\x81[\xf8-\xff]\xe1\x0d\x00\x00"
+                rb".{1,24}\x5f\x30\x00\x00"
+                rb".{1,64}\xf5\x84\x00\x00"
+            )
+
+            # Check already applied first (4-byte prologue patch, legacy 20-byte NOP patch, or pre-153 patch)
             p6_153_pat = bytes.fromhex("b0 01 c3 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90")
             p6_pre_pat = bytes.fromhex("b0 01 c3 90 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
-            if data.find(p6_153_pat) != -1 or data.find(p6_pre_pat) != -1:
-                print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
-                return True
-            p6_applied_re = re.compile(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", re.DOTALL)
-            if p6_applied_re.search(data):
+            if (
+                re.search(rb"\xb0\x01\xc3\x90" + p6_body, data, re.DOTALL)
+                or re.search(re.escape(p6_153_pat) + rb".{1,24}\x5f\x30\x00\x00", data, re.DOTALL)
+                or data.find(p6_pre_pat) != -1
+                or re.search(rb"\xb0\x01\xc3\x90(?:\x41[\x50-\x57]|[\x50-\x57]){0,4}\x48\x81\xec\x30\x01\x00\x00", data, re.DOTALL)
+            ):
                 print("[*] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
                 return True
 
-            # 1. Chromium 153+ exact pattern (sub rsp, 0x130; cmp esi, 0xde1)
-            p6_153_orig = bytes.fromhex("55 48 89 e5 41 56 53 48 81 ec 30 01 00 00 81 fe e1 0d 00 00")
-            idx = data.find(p6_153_orig)
-            if idx != -1:
-                data[idx : idx + len(p6_153_pat)] = p6_153_pat
-                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(idx)}!")
-                return True
-
-            # 2. Dynamic pattern specifically anchored to ScopedEGLSurfaceIOSurface::ValidateTarget (stack frame 0x130)
-            p6_re = re.compile(rb"\x55\x48\x89\xe5(?:\x41[\x50-\x57]|[\x50-\x57]){1,4}\x48\x81\xec\x30\x01\x00\x00\x81\xfe\xe1\x0d\x00\x00", re.DOTALL)
+            # 1. Dynamic stack-frame-agnostic pattern for Chromium M153-M158+
+            # Replace only the 4-byte prologue (push rbp; mov rbp, rsp -> mov al, 1; ret; nop)
+            p6_re = re.compile(rb"\x55\x48\x89\xe5" + p6_body, re.DOTALL)
             m = p6_re.search(data)
             if m:
                 offset = m.start()
-                data[offset : offset + 20] = p6_153_pat
-                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied dynamically at {hex(offset)}!")
+                data[offset : offset + 4] = b"\xb0\x01\xc3\x90"
+                print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(offset)}!")
                 return True
 
-            # 3. Pre-153 static pattern
+            # 2. Pre-153 static pattern
             p6_pre_orig = bytes.fromhex("55 48 89 e5 41 56 41 55 41 54 53 48 83 ec 10 49 89 fd 48 8b 07")
             idx = data.find(p6_pre_orig)
             if idx != -1:
-                data[idx : idx + len(p6_pre_pat)] = p6_pre_pat
+                data[idx : idx + 4] = b"\xb0\x01\xc3\x90"
                 print(f"[+] Patch 6 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(idx)}!")
                 return True
 

@@ -253,7 +253,7 @@ class VivaldiPatcher(BaseBrowserPatcher):
             return False
 
         def patch_p7_validate_target(data: bytearray):
-            # 1. ScopedEGLSurfaceIOSurface::ValidateTarget return true bypass
+            # 1. ScopedEGLSurfaceIOSurface::ValidateTarget return true bypass (Chromium 135-152)
             p7_ret_true = re.compile(rb"(\x55\x48\x89\xe5[\x41\x54-\x57]*\x85\xf6\x74.)\x8b\x87", re.DOTALL)
             m = p7_ret_true.search(data)
             if m:
@@ -271,6 +271,24 @@ class VivaldiPatcher(BaseBrowserPatcher):
             if idx != -1:
                 data[idx:idx+4] = b"\xb0\x01\xc3\x90"
                 print(f"[+] Patch 7 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied at {hex(idx)}!")
+                return True
+
+            # 3. Modern Chromium M153-M158+ semantic pattern (stack-frame-agnostic)
+            p7_modern_body = (
+                rb"(?:\x41[\x50-\x57]|[\x50-\x57]){0,6}"
+                rb"(?:\x48\x83\xec.|\x48\x81\xec.{4})"
+                rb".{0,12}(?:\x41)?\x81[\xf8-\xff]\xe1\x0d\x00\x00"
+                rb".{1,24}\x5f\x30\x00\x00"
+                rb".{1,64}\xf5\x84\x00\x00"
+            )
+            if re.search(rb"\xb0\x01\xc3\x90" + p7_modern_body, data, re.DOTALL):
+                print("[*] Patch 7 (ScopedEGLSurfaceIOSurface::ValidateTarget) is already applied.")
+                return True
+            m_mod = re.search(rb"\x55\x48\x89\xe5" + p7_modern_body, data, re.DOTALL)
+            if m_mod:
+                offset = m_mod.start()
+                data[offset:offset+4] = b"\xb0\x01\xc3\x90"
+                print(f"[+] Patch 7 (ScopedEGLSurfaceIOSurface::ValidateTarget) applied successfully at {hex(offset)}!")
                 return True
 
             print("[!] Warning: Patch 7 (ScopedEGLSurfaceIOSurface::ValidateTarget) pattern not found!")
